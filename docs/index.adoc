@@ -1,0 +1,77 @@
+= Quarkus RSQL
+
+This extension lets REST endpoints accept https://github.com/jirutka/rsql-parser[RSQL] filters, such as `name==Apple;weight=gt=100`, and turns them into Hibernate ORM queries.
+It works with Hibernate ORM with Panache and with plain HQL/JPQL.
+
+== Installation
+
+The extension isn't published yet. Build it with `mvn install`, then add the `io.github.matheuslealpa:quarkus-rsql` dependency to your build file.
+
+With Maven, add the following to your `pom.xml`:
+
+[source,xml]
+----
+<dependency>
+    <groupId>io.github.matheuslealpa</groupId>
+    <artifactId>quarkus-rsql</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+</dependency>
+----
+
+With Gradle, add the following to your `build.gradle`:
+
+[source,gradle]
+----
+implementation("io.github.matheuslealpa:quarkus-rsql:1.0.0-SNAPSHOT")
+----
+
+== Usage
+
+Translate the filter with `Rsql.toQuery` and pass the result to Panache:
+
+[source,java]
+----
+@GET
+public List<Fruit> list(@QueryParam("filter") String filter) {
+    RsqlQuery query = Rsql.toQuery(filter, Fruit.class);
+    return Fruit.find(query.query(), query.parameters()).list();
+}
+----
+
+A `null` or blank filter matches all entities.
+
+=== Operators
+
+[cols="1,1,2"]
+|===
+|RSQL |HQL |Example
+
+|`==` |`=`, or `like` if a `String` value contains `+*+` |`name==Apple`, `name==*apple*`
+|`!=` |`<>`, or `not like` |`color!=RED`
+|`=gt=` or `>` |`>` |`weight=gt=100`
+|`=ge=` or `>=` |`>=` |`harvested>=2026-10-01`
+|`=lt=` or `<` |`<` |`weight<100`
+|`=le=` or `\<=` |`\<=` |`weight=le=100`
+|`=in=` |`in` |`color=in=(RED,GREEN)`
+|`=out=` |`not in` |`color=out=(RED)`
+|`=null=` |`is null` |`harvested=null=`
+|`=notnull=` |`is not null` |`harvested=notnull=`
+|===
+
+Use `;` (or `and`) and `,` (or `or`) to combine conditions, and parentheses to group them.
+
+=== Values
+
+Values are converted to the type of the entity field: `String`, numbers, `BigDecimal`, `BigInteger`, `Boolean`, enums, `UUID`, `LocalDate`, `LocalDateTime`, `LocalTime`, `OffsetDateTime` and `Instant`.
+
+In a `String` comparison, `+*+` matches any sequence of characters. Other characters, including `%` and `_`, are matched literally.
+
+=== Security
+
+Selectors must be the name of a field of the entity class, and values are always bound as named parameters, so a filter can't inject HQL.
+An invalid filter, an unknown property or a value of the wrong type throws an `RsqlException`, which you can map to a `400 Bad Request` response.
+
+=== Current limitations
+
+* Only fields declared directly on the entity (or its superclasses) can be filtered; nested paths such as `owner.name` aren't supported yet.
+* Native mode hasn't been tested yet.

@@ -208,10 +208,49 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         } catch (IllegalArgumentException ex) {
             return null;
         }
-        if (attribute.getJavaMember() instanceof AnnotatedElement member && member.isAnnotationPresent(RsqlIgnore.class)) {
+        if (isIgnored(type, attribute)) {
             return null;
         }
         return attribute;
+    }
+
+    /**
+     * Whether the attribute is annotated with {@link RsqlIgnore}, on its field or on its getter,
+     * whichever of them Hibernate ORM uses to access it.
+     */
+    private static boolean isIgnored(ManagedType<?> type, Attribute<?, ?> attribute) {
+        if (attribute.getJavaMember() instanceof AnnotatedElement member && member.isAnnotationPresent(RsqlIgnore.class)) {
+            return true;
+        }
+        String name = attribute.getName();
+        String capitalized = Character.toUpperCase(name.charAt(0)) + name.substring(1);
+        for (Class<?> declaringType = type.getJavaType(); declaringType != null
+                && declaringType != Object.class; declaringType = declaringType.getSuperclass()) {
+            if (isAnnotated(declaringType, name, "get" + capitalized, "is" + capitalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isAnnotated(Class<?> declaringType, String field, String... getters) {
+        try {
+            if (declaringType.getDeclaredField(field).isAnnotationPresent(RsqlIgnore.class)) {
+                return true;
+            }
+        } catch (NoSuchFieldException ex) {
+            // Not declared on this type
+        }
+        for (String getter : getters) {
+            try {
+                if (declaringType.getDeclaredMethod(getter).isAnnotationPresent(RsqlIgnore.class)) {
+                    return true;
+                }
+            } catch (NoSuchMethodException ex) {
+                // Not declared on this type
+            }
+        }
+        return false;
     }
 
     private static String comparison(ComparisonOperator operator) {

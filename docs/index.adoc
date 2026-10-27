@@ -50,6 +50,22 @@ Use the alias to qualify properties in other clauses, such as sorting:
 Fruit.find(query.query(), Sort.by(Rsql.ALIAS + ".name"), query.parameters()).list();
 ----
 
+=== Filter parameters
+
+Receive the filter as an `RsqlFilter` to convert it directly from a request parameter:
+
+[source,java]
+----
+@GET
+public List<Fruit> list(@QueryParam("filter") @DefaultValue("") RsqlFilter filter) {
+    RsqlQuery query = filter.toQuery(Fruit.class);
+    return Fruit.find(query.query(), query.parameters()).list();
+}
+----
+
+The filter is only parsed by `toQuery`, once the entity is known, so an invalid filter throws an `RsqlException` instead of failing the parameter conversion, which REST reports as `404 Not Found` for query parameters.
+Use `@DefaultValue("")` to match all entities when the parameter is missing, as JAX-RS passes `null` otherwise.
+
 === Nested paths
 
 Selectors can navigate through single-valued associations (`@ManyToOne`, `@OneToOne`) and embeddables (`@Embedded`), for example `farm.name==Sunny` or `farm.address.city==Lisboa`.

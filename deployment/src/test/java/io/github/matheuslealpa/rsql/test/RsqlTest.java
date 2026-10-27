@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import io.github.matheuslealpa.rsql.Rsql;
 import io.github.matheuslealpa.rsql.RsqlException;
+import io.github.matheuslealpa.rsql.RsqlFilter;
 import io.github.matheuslealpa.rsql.RsqlQuery;
 import io.github.matheuslealpa.rsql.test.Fruit.Color;
 import io.quarkus.test.QuarkusExtensionTest;
@@ -227,6 +228,26 @@ class RsqlTest {
     void toQueryWhenClassIsNotAnEntityThenException() {
         assertThatIllegalArgumentException().isThrownBy(() -> Rsql.toQuery("city==x", Address.class))
                 .withMessageContaining("isn't an entity of any persistence unit");
+    }
+
+    @Test
+    void rsqlFilterWhenToQueryThenSameAsRsql() {
+        RsqlFilter filter = RsqlFilter.fromString("name==Apple;farm.name==Sunny");
+        assertThat(query(filter.toQuery(Fruit.class))).isEqualTo(Rsql.toQuery(filter.toString(), Fruit.class));
+        assertThat(filter.toQuery(Fruit.class, Set.of("name", "farm.name")))
+                .isEqualTo(Rsql.toQuery(filter.toString(), Fruit.class));
+        assertThat(RsqlFilter.fromString(null).toQuery(Fruit.class))
+                .isEqualTo(new RsqlQuery("select r from Fruit r", Map.of()));
+    }
+
+    @Test
+    void rsqlFilterWhenInvalidThenExceptionOnlyOnToQuery() {
+        RsqlFilter filter = RsqlFilter.fromString("name==");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> filter.toQuery(Fruit.class))
+                .withMessage("Invalid RSQL filter: name==");
+        assertThatExceptionOfType(RsqlException.class)
+                .isThrownBy(() -> RsqlFilter.fromString("weight==1").toQuery(Fruit.class, Set.of("name")))
+                .withMessage("Unknown property 'weight' for Fruit");
     }
 
     private RsqlQuery toQuery(String filter) {

@@ -3,6 +3,7 @@ package io.github.matheuslealpa.rsql.it;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.QueryParam;
@@ -12,6 +13,7 @@ import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 import io.github.matheuslealpa.rsql.Rsql;
 import io.github.matheuslealpa.rsql.RsqlException;
+import io.github.matheuslealpa.rsql.RsqlFilter;
 import io.github.matheuslealpa.rsql.RsqlQuery;
 import io.quarkus.panache.common.Sort;
 
@@ -39,8 +41,8 @@ public class FruitResource {
 
     @GET
     @Path("/count")
-    public long count(@QueryParam("filter") String filter) {
-        RsqlQuery query = Rsql.toQuery(filter, Fruit.class);
+    public long count(@QueryParam("filter") @DefaultValue("") RsqlFilter filter) {
+        RsqlQuery query = filter.toQuery(Fruit.class);
         return Fruit.count(query.query(), query.parameters());
     }
 

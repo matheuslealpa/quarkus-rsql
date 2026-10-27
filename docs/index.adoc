@@ -83,7 +83,35 @@ In a `String` comparison, `+*+` matches any sequence of characters. Other charac
 
 === Security
 
-Selectors must be the name of a field of the entity class, and values are always bound as named parameters, so a filter can't inject HQL.
+Selectors are resolved against the Hibernate ORM metamodel, so they must be persistent attributes of the entity: transient fields can't be filtered.
+Values are always bound as named parameters, so a filter can't inject HQL.
+
+Any persistent attribute can be filtered by default, including through associations.
+Comparisons such as `passwordHash=gt=m` let a client guess a value one character at a time from the results, so don't expose sensitive attributes.
+Annotate them with `@RsqlIgnore` to exclude them from every filter:
+
+[source,java]
+----
+@Entity
+public class Owner extends PanacheEntity {
+
+    public String name;
+
+    @RsqlIgnore
+    public String passwordHash;
+
+}
+----
+
+To expose only some properties to the clients of an API, pass the accepted selectors to `Rsql.toQuery`:
+
+[source,java]
+----
+RsqlQuery query = Rsql.toQuery(filter, Fruit.class, Set.of("name", "color", "farm.name"));
+----
+
+Ignored attributes and selectors that aren't accepted are rejected as unknown properties, so that their existence isn't revealed.
+
 An invalid filter, an unknown property or a value of the wrong type throws an `RsqlException`, which you can map to a `400 Bad Request` response.
 
 === Current limitations

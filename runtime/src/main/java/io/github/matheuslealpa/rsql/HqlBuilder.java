@@ -1,55 +1,52 @@
 package io.github.matheuslealpa.rsql;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Pattern;
+import java.lang.reflect.AnnotatedElement;
+import java.util.*;
 import java.util.stream.Collectors;
 
-import cz.jirutka.rsql.parser.ast.AndNode;
-import cz.jirutka.rsql.parser.ast.ComparisonNode;
-import cz.jirutka.rsql.parser.ast.ComparisonOperator;
-import cz.jirutka.rsql.parser.ast.LogicalNode;
-import cz.jirutka.rsql.parser.ast.Node;
-import cz.jirutka.rsql.parser.ast.OrNode;
-import cz.jirutka.rsql.parser.ast.RSQLOperators;
-import cz.jirutka.rsql.parser.ast.RSQLVisitor;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.EntityType;
+import jakarta.persistence.metamodel.ManagedType;
+import jakarta.persistence.metamodel.SingularAttribute;
+
+import cz.jirutka.rsql.parser.ast.*;
 
 /**
  * Builds an HQL query from an RSQL node tree. Not thread-safe; create one per filter.
+ * <p>
+ * Selectors are resolved against the Hibernate ORM metamodel, so only persistent attributes can be
+ * filtered: transient fields and attributes annotated with {@link RsqlIgnore} are unknown.
  * <p>
  * Associations to other entities are joined with left joins, so that entities whose
  * association is {@code null} are still matched by the other conditions of an {@code or}.
  */
 final class HqlBuilder implements RSQLVisitor<String, Void> {
 
-    private static final Pattern PROPERTY_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
-
-    private static final String ENTITY_ANNOTATION = "jakarta.persistence.Entity";
-
     static final String ROOT_ALIAS = "r";
 
-    private final Class<?> entityClass;
+    private final EntityType<?> entityType;
+
+    /**
+     * The selectors the filter may use, or {@code null} to accept any persistent attribute.
+     */
+    private final Set<String> selectors;
 
     private final Map<String, Object> parameters = new HashMap<>();
 
-    /** Joined association paths, such as {@code r.farm}, mapped to their alias. */
+    /**
+     * Joined association paths, such as {@code r.farm}, mapped to their alias.
+     */
     private final Map<String, String> joins = new LinkedHashMap<>();
 
-    HqlBuilder(Class<?> entityClass) {
-        this.entityClass = entityClass;
+    HqlBuilder(EntityType<?> entityType, Set<String> selectors) {
+        this.entityType = entityType;
+        this.selectors = (selectors != null) ? Set.copyOf(selectors) : null;
     }
 
     RsqlQuery build(Node node) {
         String restriction = (node != null) ? node.accept(this) : null;
         StringBuilder query = new StringBuilder("select ").append(ROOT_ALIAS).append(" from ")
-                .append(entityName(this.entityClass)).append(' ').append(ROOT_ALIAS);
+                .append(this.entityType.getName()).append(' ').append(ROOT_ALIAS);
         this.joins.forEach((path, alias) -> query.append(" left join ").append(path).append(' ').append(alias));
         if (restriction != null) {
             query.append(" where ").append(restriction);
@@ -122,74 +119,54 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
      * joined, or embeddables.
      */
     private Property resolve(String selector) {
+        if (this.selectors != null && !this.selectors.contains(selector)) {
+            throw unknownProperty(selector);
+        }
         String[] segments = selector.split("\\.", -1);
         String path = ROOT_ALIAS;
-        Class<?> type = this.entityClass;
+        ManagedType<?> type = this.entityType;
         for (int i = 0; i < segments.length; i++) {
-            Field field = findField(type, segments[i]);
-            if (field == null) {
-                throw new RsqlException("Unknown property '" + selector + "' for " + this.entityClass.getSimpleName());
+            Attribute<?, ?> attribute = findAttribute(type, segments[i]);
+            if (attribute == null) {
+                throw unknownProperty(selector);
             }
-            type = field.getType();
-            String fieldPath = path + "." + segments[i];
-            if (i == segments.length - 1) {
-                return new Property(fieldPath, type);
-            }
-            if (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type) || type.isArray()) {
+            if (attribute.isCollection()) {
                 throw new RsqlException("Collection property '" + segments[i] + "' isn't supported in '" + selector + "'");
             }
-            if (ValueConverter.isBasic(type)) {
-                throw new RsqlException("Unknown property '" + selector + "' for " + this.entityClass.getSimpleName());
+            String attributePath = path + "." + segments[i];
+            if (i == segments.length - 1) {
+                return new Property(attributePath, attribute.getJavaType());
             }
-            path = isEntity(type) ? this.joins.computeIfAbsent(fieldPath, (key) -> "j" + this.joins.size()) : fieldPath;
+            path = switch (attribute.getPersistentAttributeType()) {
+                case EMBEDDED -> attributePath;
+                case MANY_TO_ONE, ONE_TO_ONE ->
+                    this.joins.computeIfAbsent(attributePath, (key) -> "j" + this.joins.size());
+                default -> throw unknownProperty(selector);
+            };
+            type = (ManagedType<?>) ((SingularAttribute<?, ?>) attribute).getType();
         }
         throw new IllegalStateException("Empty selector");
     }
 
-    private static Field findField(Class<?> declaringType, String name) {
-        if (!PROPERTY_NAME.matcher(name).matches()) {
-            return null;
-        }
-        for (Class<?> type = declaringType; type != null && type != Object.class; type = type.getSuperclass()) {
-            for (Field field : type.getDeclaredFields()) {
-                if (field.getName().equals(name) && !Modifier.isStatic(field.getModifiers())) {
-                    return field;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static boolean isEntity(Class<?> type) {
-        return entityAnnotation(type) != null;
+    private RsqlException unknownProperty(String selector) {
+        return new RsqlException("Unknown property '" + selector + "' for " + this.entityType.getName());
     }
 
     /**
-     * Returns the entity name used in HQL: the {@code name} of {@code @Entity}, or the
-     * simple class name.
+     * Returns the persistent attribute with the given name, or {@code null} if there is none or
+     * it is annotated with {@link RsqlIgnore}.
      */
-    private static String entityName(Class<?> type) {
-        Annotation entity = entityAnnotation(type);
-        if (entity != null) {
-            try {
-                String name = (String) entity.annotationType().getMethod("name").invoke(entity);
-                if (name != null && !name.isEmpty()) {
-                    return name;
-                }
-            } catch (ReflectiveOperationException ex) {
-                throw new IllegalStateException("Unable to read the entity name of " + type.getName(), ex);
-            }
+    private static Attribute<?, ?> findAttribute(ManagedType<?> type, String name) {
+        Attribute<?, ?> attribute;
+        try {
+            attribute = type.getAttribute(name);
+        } catch (IllegalArgumentException ex) {
+            return null;
         }
-        return type.getSimpleName();
-    }
-
-    private static Annotation entityAnnotation(Class<?> type) {
-        for (Annotation annotation : type.getAnnotations()) {
-            if (annotation.annotationType().getName().equals(ENTITY_ANNOTATION)) {
-                return annotation;
-            }
+        if (attribute.getJavaMember() instanceof AnnotatedElement member && member.isAnnotationPresent(RsqlIgnore.class)) {
+            return null;
         }
-        return null;
+        return attribute;
     }
 
     private static String comparison(ComparisonOperator operator) {

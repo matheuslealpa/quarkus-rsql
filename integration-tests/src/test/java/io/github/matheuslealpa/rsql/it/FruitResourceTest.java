@@ -85,12 +85,26 @@ class FruitResourceTest {
             "color==BLUE     | expected one of: RED, GREEN, YELLOW",
             "name==          | Invalid RSQL filter",
             "farm.owner==x   | Unknown property 'farm.owner'",
-            "name.value==x   | Unknown property 'name.value'" })
+            "name.value==x   | Unknown property 'name.value'",
+            "label==x        | Unknown property 'label'",
+            "supplierCode==x | Unknown property 'supplierCode'" })
     void listWhenInvalidFilterThenBadRequest(String filter, String message) {
         given().queryParam("filter", filter)
                 .when().get("/fruits")
                 .then().statusCode(400)
                 .body(containsString(message));
+    }
+
+    @Test
+    void listWhenSelectorsThenOnlyThoseAreAccepted() {
+        given().queryParam("filter", "color==GREEN;name==*Apple")
+                .when().get("/fruits/by-name-or-color")
+                .then().statusCode(200)
+                .body("$", contains("Green Apple"));
+        given().queryParam("filter", "weight=gt=100")
+                .when().get("/fruits/by-name-or-color")
+                .then().statusCode(400)
+                .body(containsString("Unknown property 'weight'"));
     }
 
 }

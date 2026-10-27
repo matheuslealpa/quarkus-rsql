@@ -12,7 +12,8 @@ public List<Fruit> list(@QueryParam("filter") String filter) {
 
 Supported operators: `==`, `!=`, `=gt=`, `=ge=`, `=lt=`, `=le=`, `=in=`, `=out=`, `=null=` and `=notnull=`, combined with `;` (and) and `,` (or).
 Selectors can be fields of the entity or paths through its associations and embeddables, such as `farm.name`, which are joined with left joins.
-Selectors must exist in the entity, and values are always bound as parameters, so filters can't inject HQL.
+Selectors must be persistent attributes of the entity, and values are always bound as parameters, so filters can't inject HQL.
+Hide sensitive attributes with `@RsqlIgnore`, or accept only some selectors with `Rsql.toQuery(filter, Fruit.class, Set.of("name", "farm.name"))`.
 
 See the [documentation](docs/index.adoc) for details.
 

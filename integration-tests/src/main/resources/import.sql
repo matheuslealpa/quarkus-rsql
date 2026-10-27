@@ -1,6 +1,6 @@
 insert into Farm(id, name, country) values (1, 'Sunny Farm', 'BR');
 insert into Farm(id, name, country) values (2, 'Hill Farm', 'PT');
-insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (1, 'Apple', 150, 'RED', '2026-10-01', true, 1);
+insert into Fruit(id, name, weight, color, harvested, organic, farm_id, supplierCode) values (1, 'Apple', 150, 'RED', '2026-10-01', true, 1, 'SUP-001');
 insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (2, 'Green Apple', 140, 'GREEN', '2026-10-05', false, 1);
 insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (3, 'Banana', 120, 'YELLOW', null, true, null);
 insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (4, 'Lime', 60, 'GREEN', '2026-09-20', false, null);

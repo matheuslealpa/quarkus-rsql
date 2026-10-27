@@ -1,6 +1,7 @@
 package io.github.matheuslealpa.rsql.it;
 
 import java.util.List;
+import java.util.Set;
 
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -20,6 +21,16 @@ public class FruitResource {
     @GET
     public List<String> list(@QueryParam("filter") String filter) {
         RsqlQuery query = Rsql.toQuery(filter, Fruit.class);
+        return Fruit.<Fruit> find(query.query(), Sort.by(Rsql.ALIAS + ".id"), query.parameters())
+                .stream()
+                .map((fruit) -> fruit.name)
+                .toList();
+    }
+
+    @GET
+    @Path("/by-name-or-color")
+    public List<String> listByNameOrColor(@QueryParam("filter") String filter) {
+        RsqlQuery query = Rsql.toQuery(filter, Fruit.class, Set.of("name", "color"));
         return Fruit.<Fruit> find(query.query(), Sort.by(Rsql.ALIAS + ".id"), query.parameters())
                 .stream()
                 .map((fruit) -> fruit.name)

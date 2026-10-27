@@ -20,10 +20,17 @@ public class FruitResource {
     @GET
     public List<String> list(@QueryParam("filter") String filter) {
         RsqlQuery query = Rsql.toQuery(filter, Fruit.class);
-        return Fruit.<Fruit> find(query.query(), Sort.by("id"), query.parameters())
+        return Fruit.<Fruit> find(query.query(), Sort.by(Rsql.ALIAS + ".id"), query.parameters())
                 .stream()
                 .map((fruit) -> fruit.name)
                 .toList();
+    }
+
+    @GET
+    @Path("/count")
+    public long count(@QueryParam("filter") String filter) {
+        RsqlQuery query = Rsql.toQuery(filter, Fruit.class);
+        return Fruit.count(query.query(), query.parameters());
     }
 
     @ServerExceptionMapper

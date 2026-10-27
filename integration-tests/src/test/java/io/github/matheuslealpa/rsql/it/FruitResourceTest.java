@@ -32,12 +32,30 @@ class FruitResourceTest {
             "harvested=null=                     | Banana",
             "harvested=ge=2026-10-05             | Green Apple,50%_Off Pear",
             "organic==true;color!=YELLOW         | Apple,50%_Off Pear",
-            "id==4                               | Lime" })
+            "id==4                               | Lime",
+            "farm.name==\"Sunny Farm\"             | Apple,Green Apple",
+            "farm.country==PT                    | 50%_Off Pear",
+            "farm.name==*Farm;color==GREEN       | Green Apple,50%_Off Pear",
+            "farm=null=                          | Banana,Lime",
+            "farm.name==\"Sunny Farm\",name==Lime  | Apple,Green Apple,Lime",
+            "farm.country!=BR,weight=lt=100      | Lime,50%_Off Pear" })
     void listWhenFilterThenMatchingFruits(String filter, String expected) {
         given().queryParam("filter", filter)
                 .when().get("/fruits")
                 .then().statusCode(200)
                 .body("$", contains(expected.split(",")));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "                                    | 5",
+            "color==GREEN                        | 3",
+            "farm.name==\"Sunny Farm\",name==Lime  | 3" })
+    void countWhenFilterThenMatchingCount(String filter, long expected) {
+        given().queryParam("filter", filter == null ? "" : filter)
+                .when().get("/fruits/count")
+                .then().statusCode(200)
+                .body(org.hamcrest.Matchers.is(String.valueOf(expected)));
     }
 
     @Test
@@ -65,7 +83,9 @@ class FruitResourceTest {
             "unknown==1      | Unknown property 'unknown'",
             "weight==heavy   | Invalid value 'heavy'",
             "color==BLUE     | expected one of: RED, GREEN, YELLOW",
-            "name==          | Invalid RSQL filter" })
+            "name==          | Invalid RSQL filter",
+            "farm.owner==x   | Unknown property 'farm.owner'",
+            "name.value==x   | Unknown property 'name.value'" })
     void listWhenInvalidFilterThenBadRequest(String filter, String message) {
         given().queryParam("filter", filter)
                 .when().get("/fruits")

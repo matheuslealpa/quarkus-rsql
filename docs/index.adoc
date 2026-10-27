@@ -40,6 +40,21 @@ public List<Fruit> list(@QueryParam("filter") String filter) {
 
 A `null` or blank filter matches all entities.
 
+The generated query selects the entity with the alias `r` (also available as `Rsql.ALIAS`), for example `select r from Fruit r where r.name = :p0`.
+Use the alias to qualify properties in other clauses, such as sorting:
+
+[source,java]
+----
+Fruit.find(query.query(), Sort.by(Rsql.ALIAS + ".name"), query.parameters()).list();
+----
+
+=== Nested paths
+
+Selectors can navigate through single-valued associations (`@ManyToOne`, `@OneToOne`) and embeddables (`@Embedded`), for example `farm.name==Sunny` or `farm.address.city==Lisboa`.
+
+Associations are joined with left joins, so entities whose association is `null` are still matched by the other conditions of an `or`: `farm.name==Sunny,name==Lime` also returns fruits without a farm named `Lime`.
+An association used more than once in a filter is joined only once.
+
 === Operators
 
 [cols="1,1,2"]
@@ -73,5 +88,5 @@ An invalid filter, an unknown property or a value of the wrong type throws an `R
 
 === Current limitations
 
-* Only fields declared directly on the entity (or its superclasses) can be filtered; nested paths such as `owner.name` aren't supported yet.
+* Collections (`@OneToMany`, `@ManyToMany`, `@ElementCollection`) can't be used in a path yet, for example `tags.name`.
 * Native mode hasn't been tested yet.

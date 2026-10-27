@@ -1,9 +1,12 @@
 package io.github.matheuslealpa.rsql;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -19,23 +22,39 @@ import cz.jirutka.rsql.parser.ast.RSQLOperators;
 import cz.jirutka.rsql.parser.ast.RSQLVisitor;
 
 /**
- * Builds an HQL restriction from an RSQL node tree. Not thread-safe; create one per filter.
+ * Builds an HQL query from an RSQL node tree. Not thread-safe; create one per filter.
+ * <p>
+ * Associations to other entities are joined with left joins, so that entities whose
+ * association is {@code null} are still matched by the other conditions of an {@code or}.
  */
 final class HqlBuilder implements RSQLVisitor<String, Void> {
 
     private static final Pattern PROPERTY_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
+    private static final String ENTITY_ANNOTATION = "jakarta.persistence.Entity";
+
+    static final String ROOT_ALIAS = "r";
+
     private final Class<?> entityClass;
 
     private final Map<String, Object> parameters = new HashMap<>();
+
+    /** Joined association paths, such as {@code r.farm}, mapped to their alias. */
+    private final Map<String, String> joins = new LinkedHashMap<>();
 
     HqlBuilder(Class<?> entityClass) {
         this.entityClass = entityClass;
     }
 
     RsqlQuery build(Node node) {
-        String query = node.accept(this);
-        return new RsqlQuery(query, this.parameters);
+        String restriction = (node != null) ? node.accept(this) : null;
+        StringBuilder query = new StringBuilder("select ").append(ROOT_ALIAS).append(" from ")
+                .append(entityName(this.entityClass)).append(' ').append(ROOT_ALIAS);
+        this.joins.forEach((path, alias) -> query.append(" left join ").append(path).append(' ').append(alias));
+        if (restriction != null) {
+            query.append(" where ").append(restriction);
+        }
+        return new RsqlQuery(query.toString(), this.parameters);
     }
 
     @Override
@@ -50,15 +69,17 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
 
     @Override
     public String visit(ComparisonNode node, Void param) {
-        String property = node.getSelector();
-        Class<?> type = propertyType(property);
+        String selector = node.getSelector();
+        Property property = resolve(selector);
+        String path = property.path();
+        Class<?> type = property.type();
         ComparisonOperator operator = node.getOperator();
         List<String> arguments = node.getArguments();
         if (operator.equals(RSQLOperators.IS_NULL)) {
-            return property + " is null";
+            return path + " is null";
         }
         if (operator.equals(RSQLOperators.NOT_NULL)) {
-            return property + " is not null";
+            return path + " is not null";
         }
         if (operator.equals(RSQLOperators.IN) || operator.equals(RSQLOperators.NOT_IN)) {
             boolean in = operator.equals(RSQLOperators.IN);
@@ -67,21 +88,20 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
             }
             List<Object> values = new ArrayList<>(arguments.size());
             for (String argument : arguments) {
-                values.add(ValueConverter.convert(argument, type, property));
+                values.add(ValueConverter.convert(argument, type, selector));
             }
-            return property + (in ? " in " : " not in ") + parameter(values);
+            return path + (in ? " in " : " not in ") + parameter(values);
         }
         String argument = arguments.get(0);
         if (operator.equals(RSQLOperators.EQUAL) || operator.equals(RSQLOperators.NOT_EQUAL)) {
             boolean equal = operator.equals(RSQLOperators.EQUAL);
             if (type == String.class && argument.indexOf('*') >= 0) {
-                return property + (equal ? " like " : " not like ") + parameter(likePattern(argument))
-                        + " escape '\\'";
+                return path + (equal ? " like " : " not like ") + parameter(likePattern(argument)) + " escape '\\'";
             }
-            return property + (equal ? " = " : " <> ") + parameter(ValueConverter.convert(argument, type, property));
+            return path + (equal ? " = " : " <> ") + parameter(ValueConverter.convert(argument, type, selector));
         }
         String comparison = comparison(operator);
-        return property + " " + comparison + " " + parameter(ValueConverter.convert(argument, type, property));
+        return path + " " + comparison + " " + parameter(ValueConverter.convert(argument, type, selector));
     }
 
     private String join(LogicalNode node, String operator) {
@@ -96,17 +116,80 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         return ":" + name;
     }
 
-    private Class<?> propertyType(String property) {
-        if (PROPERTY_NAME.matcher(property).matches()) {
-            for (Class<?> type = this.entityClass; type != null && type != Object.class; type = type.getSuperclass()) {
-                for (Field field : type.getDeclaredFields()) {
-                    if (field.getName().equals(property) && !Modifier.isStatic(field.getModifiers())) {
-                        return field.getType();
-                    }
+    /**
+     * Resolves a selector such as {@code name} or {@code farm.address.city} to its HQL path
+     * and Java type. Intermediate segments must be single-valued associations, which are
+     * joined, or embeddables.
+     */
+    private Property resolve(String selector) {
+        String[] segments = selector.split("\\.", -1);
+        String path = ROOT_ALIAS;
+        Class<?> type = this.entityClass;
+        for (int i = 0; i < segments.length; i++) {
+            Field field = findField(type, segments[i]);
+            if (field == null) {
+                throw new RsqlException("Unknown property '" + selector + "' for " + this.entityClass.getSimpleName());
+            }
+            type = field.getType();
+            String fieldPath = path + "." + segments[i];
+            if (i == segments.length - 1) {
+                return new Property(fieldPath, type);
+            }
+            if (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type) || type.isArray()) {
+                throw new RsqlException("Collection property '" + segments[i] + "' isn't supported in '" + selector + "'");
+            }
+            if (ValueConverter.isBasic(type)) {
+                throw new RsqlException("Unknown property '" + selector + "' for " + this.entityClass.getSimpleName());
+            }
+            path = isEntity(type) ? this.joins.computeIfAbsent(fieldPath, (key) -> "j" + this.joins.size()) : fieldPath;
+        }
+        throw new IllegalStateException("Empty selector");
+    }
+
+    private static Field findField(Class<?> declaringType, String name) {
+        if (!PROPERTY_NAME.matcher(name).matches()) {
+            return null;
+        }
+        for (Class<?> type = declaringType; type != null && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                if (field.getName().equals(name) && !Modifier.isStatic(field.getModifiers())) {
+                    return field;
                 }
             }
         }
-        throw new RsqlException("Unknown property '" + property + "' for " + this.entityClass.getSimpleName());
+        return null;
+    }
+
+    private static boolean isEntity(Class<?> type) {
+        return entityAnnotation(type) != null;
+    }
+
+    /**
+     * Returns the entity name used in HQL: the {@code name} of {@code @Entity}, or the
+     * simple class name.
+     */
+    private static String entityName(Class<?> type) {
+        Annotation entity = entityAnnotation(type);
+        if (entity != null) {
+            try {
+                String name = (String) entity.annotationType().getMethod("name").invoke(entity);
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            } catch (ReflectiveOperationException ex) {
+                throw new IllegalStateException("Unable to read the entity name of " + type.getName(), ex);
+            }
+        }
+        return type.getSimpleName();
+    }
+
+    private static Annotation entityAnnotation(Class<?> type) {
+        for (Annotation annotation : type.getAnnotations()) {
+            if (annotation.annotationType().getName().equals(ENTITY_ANNOTATION)) {
+                return annotation;
+            }
+        }
+        return null;
     }
 
     private static String comparison(ComparisonOperator operator) {
@@ -135,6 +218,9 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
             }
         }
         return pattern.toString();
+    }
+
+    private record Property(String path, Class<?> type) {
     }
 
 }

@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.ManyToOne;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 
@@ -21,6 +22,9 @@ public class Fruit extends PanacheEntity {
     public LocalDate harvested;
 
     public Boolean organic;
+
+    @ManyToOne
+    public Farm farm;
 
     public enum Color {
         RED,

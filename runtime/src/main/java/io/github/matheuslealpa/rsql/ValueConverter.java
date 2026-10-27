@@ -46,6 +46,14 @@ final class ValueConverter {
     private ValueConverter() {
     }
 
+    /**
+     * Whether the type is a value that can't be navigated into, such as a number, a
+     * {@code String}, a date or an enum.
+     */
+    static boolean isBasic(Class<?> type) {
+        return type.isPrimitive() || type.isEnum() || CONVERTERS.containsKey(type) || type.getName().startsWith("java.");
+    }
+
     static Object convert(String value, Class<?> type, String property) {
         if (type.isEnum()) {
             return toEnum(value, type, property);

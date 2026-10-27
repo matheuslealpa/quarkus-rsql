@@ -11,11 +11,12 @@ public List<Fruit> list(@QueryParam("filter") String filter) {
 ```
 
 Supported operators: `==`, `!=`, `=gt=`, `=ge=`, `=lt=`, `=le=`, `=in=`, `=out=`, `=null=` and `=notnull=`, combined with `;` (and) and `,` (or).
-Selectors must be fields of the entity, and values are always bound as parameters, so filters can't inject HQL.
+Selectors can be fields of the entity or paths through its associations and embeddables, such as `farm.name`, which are joined with left joins.
+Selectors must exist in the entity, and values are always bound as parameters, so filters can't inject HQL.
 
 See the [documentation](docs/index.adoc) for details.
 
-> **Status:** experimental. Nested paths (`owner.name`) and native mode aren't supported yet.
+> **Status:** experimental. Collections in paths (`tags.name`) and native mode aren't supported yet.
 
 ## Building
 

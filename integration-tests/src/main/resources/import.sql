@@ -1,5 +1,7 @@
-insert into Fruit(id, name, weight, color, harvested, organic) values (1, 'Apple', 150, 'RED', '2026-10-01', true);
-insert into Fruit(id, name, weight, color, harvested, organic) values (2, 'Green Apple', 140, 'GREEN', '2026-10-05', false);
-insert into Fruit(id, name, weight, color, harvested, organic) values (3, 'Banana', 120, 'YELLOW', null, true);
-insert into Fruit(id, name, weight, color, harvested, organic) values (4, 'Lime', 60, 'GREEN', '2026-09-20', false);
-insert into Fruit(id, name, weight, color, harvested, organic) values (5, '50%_Off Pear', 180, 'GREEN', '2026-10-10', true);
+insert into Farm(id, name, country) values (1, 'Sunny Farm', 'BR');
+insert into Farm(id, name, country) values (2, 'Hill Farm', 'PT');
+insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (1, 'Apple', 150, 'RED', '2026-10-01', true, 1);
+insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (2, 'Green Apple', 140, 'GREEN', '2026-10-05', false, 1);
+insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (3, 'Banana', 120, 'YELLOW', null, true, null);
+insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (4, 'Lime', 60, 'GREEN', '2026-09-20', false, null);
+insert into Fruit(id, name, weight, color, harvested, organic, farm_id) values (5, '50%_Off Pear', 180, 'GREEN', '2026-10-10', true, 2);

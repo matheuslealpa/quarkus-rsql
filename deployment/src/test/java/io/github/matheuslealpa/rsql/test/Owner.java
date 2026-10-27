@@ -12,4 +12,18 @@ public class Owner extends BaseEntity {
     @RsqlIgnore
     public String passwordHash;
 
+    public String apiToken;
+
+    public boolean verified;
+
+    @RsqlIgnore
+    public String getApiToken() {
+        return this.apiToken;
+    }
+
+    @RsqlIgnore
+    public boolean isVerified() {
+        return this.verified;
+    }
+
 }

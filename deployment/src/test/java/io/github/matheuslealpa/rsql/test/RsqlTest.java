@@ -150,6 +150,14 @@ class RsqlTest {
     }
 
     @Test
+    void toQueryWhenGetterOfFieldAccessAttributeIsIgnoredThenUnknownProperty() {
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("farm.owner.apiToken==x"))
+                .withMessage("Unknown property 'farm.owner.apiToken' for Fruit");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("farm.owner.verified==true"))
+                .withMessage("Unknown property 'farm.owner.verified' for Fruit");
+    }
+
+    @Test
     void toQueryWhenSelectorsThenOnlyThoseAreAccepted() {
         Set<String> selectors = Set.of("name", "farm.name");
         assertThat(query(Rsql.toQuery("name==Apple;farm.name==Sunny", Fruit.class, selectors)).query())

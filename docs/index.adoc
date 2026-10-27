@@ -5,7 +5,9 @@ It works with Hibernate ORM with Panache and with plain HQL/JPQL.
 
 == Installation
 
-The extension isn't published yet. Build it with `mvn install`, then add the `io.github.matheuslealpa:quarkus-rsql` dependency to your build file.
+The extension requires Java 17 or later and Quarkus 3.x, and has been tested on Java 17, 21 and 25 with Quarkus 3.40.
+
+Add the `io.github.matheuslealpa:quarkus-rsql` dependency to your build file.
 
 With Maven, add the following to your `pom.xml`:
 
@@ -14,7 +16,7 @@ With Maven, add the following to your `pom.xml`:
 <dependency>
     <groupId>io.github.matheuslealpa</groupId>
     <artifactId>quarkus-rsql</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-RC1</version>
 </dependency>
 ----
 
@@ -22,7 +24,7 @@ With Gradle, add the following to your `build.gradle`:
 
 [source,gradle]
 ----
-implementation("io.github.matheuslealpa:quarkus-rsql:1.0.0-SNAPSHOT")
+implementation("io.github.matheuslealpa:quarkus-rsql:1.0.0-RC1")
 ----
 
 == Usage

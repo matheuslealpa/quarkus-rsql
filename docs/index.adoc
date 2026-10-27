@@ -66,6 +66,27 @@ public List<Fruit> list(@QueryParam("filter") @DefaultValue("") RsqlFilter filte
 The filter is only parsed by `toQuery`, once the entity is known, so an invalid filter throws an `RsqlException` instead of failing the parameter conversion, which REST reports as `404 Not Found` for query parameters.
 Use `@DefaultValue("")` to match all entities when the parameter is missing, as JAX-RS passes `null` otherwise.
 
+=== Sorting
+
+RSQL only describes filters, so the sort is a separate parameter: a comma-separated list of selectors, each prefixed with `-` to sort in descending order, such as `-price,farm.name`.
+Pass it with the filter to get a query that ends with an `order by` clause:
+
+[source,java]
+----
+@GET
+public List<Fruit> list(@QueryParam("filter") @DefaultValue("") RsqlFilter filter,
+        @QueryParam("sort") @DefaultValue("id") RsqlSort sort) {
+    RsqlQuery query = filter.toQuery(Fruit.class, sort);
+    return Fruit.find(query.query(), query.parameters()).list();
+}
+----
+
+Or with strings, `Rsql.toQuery(filter, sort, Fruit.class)`.
+
+Sort selectors follow the same rules as the filter: they must be persistent attributes, `@RsqlIgnore` and the accepted selectors apply, and associations in their paths are joined, once even if the filter uses them too.
+Only basic properties can be sorted, not associations or embeddables themselves.
+As the query is already sorted, don't pass a `Sort` to Panache too.
+
 === Nested paths
 
 Selectors can navigate through single-valued associations (`@ManyToOne`, `@OneToOne`) and embeddables (`@Embedded`), for example `farm.name==Sunny` or `farm.address.city==Lisboa`.
@@ -121,7 +142,7 @@ public class Owner extends PanacheEntity {
 }
 ----
 
-To expose only some properties to the clients of an API, pass the accepted selectors to `Rsql.toQuery`:
+To expose only some properties to the clients of an API, pass the accepted selectors to `Rsql.toQuery`, which then apply to the filter and to the sort:
 
 [source,java]
 ----

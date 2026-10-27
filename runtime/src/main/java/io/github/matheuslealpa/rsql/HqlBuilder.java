@@ -1,18 +1,31 @@
 package io.github.matheuslealpa.rsql;
 
 import java.lang.reflect.AnnotatedElement;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.Attribute.PersistentAttributeType;
 import jakarta.persistence.metamodel.EntityType;
 import jakarta.persistence.metamodel.ManagedType;
 import jakarta.persistence.metamodel.SingularAttribute;
 
-import cz.jirutka.rsql.parser.ast.*;
+import cz.jirutka.rsql.parser.ast.AndNode;
+import cz.jirutka.rsql.parser.ast.ComparisonNode;
+import cz.jirutka.rsql.parser.ast.ComparisonOperator;
+import cz.jirutka.rsql.parser.ast.LogicalNode;
+import cz.jirutka.rsql.parser.ast.Node;
+import cz.jirutka.rsql.parser.ast.OrNode;
+import cz.jirutka.rsql.parser.ast.RSQLOperators;
+import cz.jirutka.rsql.parser.ast.RSQLVisitor;
 
 /**
- * Builds an HQL query from an RSQL node tree. Not thread-safe; create one per filter.
+ * Builds an HQL query from an RSQL node tree and a sort. Not thread-safe; create one per filter.
  * <p>
  * Selectors are resolved against the Hibernate ORM metamodel, so only persistent attributes can be
  * filtered: transient fields and attributes annotated with {@link RsqlIgnore} are unknown.
@@ -27,7 +40,8 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
     private final EntityType<?> entityType;
 
     /**
-     * The selectors the filter may use, or {@code null} to accept any persistent attribute.
+     * The selectors the filter and the sort may use, or {@code null} to accept any persistent
+     * attribute.
      */
     private final Set<String> selectors;
 
@@ -43,13 +57,17 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         this.selectors = (selectors != null) ? Set.copyOf(selectors) : null;
     }
 
-    RsqlQuery build(Node node) {
+    RsqlQuery build(Node node, String sort) {
         String restriction = (node != null) ? node.accept(this) : null;
+        String order = orderBy(sort);
         StringBuilder query = new StringBuilder("select ").append(ROOT_ALIAS).append(" from ")
                 .append(this.entityType.getName()).append(' ').append(ROOT_ALIAS);
         this.joins.forEach((path, alias) -> query.append(" left join ").append(path).append(' ').append(alias));
         if (restriction != null) {
             query.append(" where ").append(restriction);
+        }
+        if (order != null) {
+            query.append(" order by ").append(order);
         }
         return new RsqlQuery(query.toString(), this.parameters);
     }
@@ -101,6 +119,33 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         return path + " " + comparison + " " + parameter(ValueConverter.convert(argument, type, selector));
     }
 
+    /**
+     * Translates a sort such as {@code -price,farm.name} into an HQL order by list, descending for
+     * the selectors prefixed with {@code -}, or returns {@code null} if the sort is blank.
+     */
+    private String orderBy(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return null;
+        }
+        List<String> orders = new ArrayList<>();
+        for (String item : sort.split(",", -1)) {
+            String selector = item.strip();
+            boolean descending = selector.startsWith("-");
+            if (descending) {
+                selector = selector.substring(1);
+            }
+            if (selector.isEmpty()) {
+                throw new RsqlException("Invalid RSQL sort: " + sort);
+            }
+            Property property = resolve(selector);
+            if (property.attributeType() != PersistentAttributeType.BASIC) {
+                throw new RsqlException("Property '" + selector + "' can't be sorted, only basic properties can");
+            }
+            orders.add(property.path() + (descending ? " desc" : " asc"));
+        }
+        return String.join(", ", orders);
+    }
+
     private String join(LogicalNode node, String operator) {
         return node.getChildren().stream()
                 .map((child) -> child.accept(this))
@@ -135,7 +180,7 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
             }
             String attributePath = path + "." + segments[i];
             if (i == segments.length - 1) {
-                return new Property(attributePath, attribute.getJavaType());
+                return new Property(attributePath, attribute.getJavaType(), attribute.getPersistentAttributeType());
             }
             path = switch (attribute.getPersistentAttributeType()) {
                 case EMBEDDED -> attributePath;
@@ -197,7 +242,7 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         return pattern.toString();
     }
 
-    private record Property(String path, Class<?> type) {
+    private record Property(String path, Class<?> type, PersistentAttributeType attributeType) {
     }
 
 }

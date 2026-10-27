@@ -54,6 +54,31 @@ public final class RsqlFilter {
         return Rsql.toQuery(this.filter, entityClass, selectors);
     }
 
+    /**
+     * Translates the filter and the sort into an HQL query for the given entity.
+     *
+     * @param sort the sort, may be {@code null} to leave the order unspecified
+     * @see Rsql#toQuery(String, String, Class)
+     */
+    public RsqlQuery toQuery(Class<?> entityClass, RsqlSort sort) {
+        return Rsql.toQuery(this.filter, sortString(sort), entityClass);
+    }
+
+    /**
+     * Translates the filter and the sort into an HQL query for the given entity, accepting only
+     * the given selectors in both.
+     *
+     * @param sort the sort, may be {@code null} to leave the order unspecified
+     * @see Rsql#toQuery(String, String, Class, Set)
+     */
+    public RsqlQuery toQuery(Class<?> entityClass, RsqlSort sort, Set<String> selectors) {
+        return Rsql.toQuery(this.filter, sortString(sort), entityClass, selectors);
+    }
+
+    private static String sortString(RsqlSort sort) {
+        return (sort != null) ? sort.toString() : null;
+    }
+
     @Override
     public String toString() {
         return this.filter;

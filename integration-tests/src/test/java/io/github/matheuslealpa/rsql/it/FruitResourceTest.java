@@ -58,6 +58,40 @@ class FruitResourceTest {
                 .body(org.hamcrest.Matchers.is(String.valueOf(expected)));
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "-weight                | 50%_Off Pear,Apple,Green Apple,Banana,Lime",
+            "color,-name            | Lime,Green Apple,50%_Off Pear,Apple,Banana",
+            "farm.country,name      | Banana,Lime,Apple,Green Apple,50%_Off Pear" })
+    void listWhenSortThenOrdered(String sort, String expected) {
+        given().queryParam("sort", sort)
+                .when().get("/fruits")
+                .then().statusCode(200)
+                .body("$", contains(expected.split(",")));
+    }
+
+    @Test
+    void listWhenFilterAndSortThroughSameAssociationThenOrdered() {
+        given().queryParam("filter", "farm=notnull=")
+                .queryParam("sort", "-farm.name,name")
+                .when().get("/fruits")
+                .then().statusCode(200)
+                .body("$", contains("Apple", "Green Apple", "50%_Off Pear"));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "unknown        | Unknown property 'unknown'",
+            "supplierCode   | Unknown property 'supplierCode'",
+            "farm           | can't be sorted",
+            "'name,,id'     | Invalid RSQL sort" })
+    void listWhenInvalidSortThenBadRequest(String sort, String message) {
+        given().queryParam("sort", sort)
+                .when().get("/fruits")
+                .then().statusCode(400)
+                .body(containsString(message));
+    }
+
     @Test
     void countWhenNoFilterThenAll() {
         given().when().get("/fruits/count").then().statusCode(200).body(org.hamcrest.Matchers.is("5"));

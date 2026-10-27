@@ -51,7 +51,7 @@ public final class Rsql {
      * @throws RsqlException if the filter is invalid or references an unknown property
      */
     public static RsqlQuery toQuery(String filter, Class<?> entityClass) {
-        return toQuery(filter, entityClass, null);
+        return toQuery(filter, null, entityClass, null);
     }
 
     /**
@@ -69,10 +69,46 @@ public final class Rsql {
      *         property
      */
     public static RsqlQuery toQuery(String filter, Class<?> entityClass, Set<String> selectors) {
+        return toQuery(filter, null, entityClass, selectors);
+    }
+
+    /**
+     * Translates an RSQL filter and a sort into an HQL query for the given entity.
+     * <p>
+     * The sort is a comma-separated list of selectors, each prefixed with {@code -} to sort in
+     * descending order, for example {@code -price,farm.name}. Only basic properties can be sorted,
+     * and associations in their paths are joined like in the filter.
+     *
+     * @param filter the RSQL filter, may be {@code null} or blank to match all entities
+     * @param sort the sort, may be {@code null} or blank to leave the order unspecified
+     * @param entityClass the entity the filter applies to
+     * @return the HQL query, with an {@code order by} clause if sorted, and its named parameters
+     * @throws RsqlException if the filter or the sort is invalid or references an unknown property
+     */
+    public static RsqlQuery toQuery(String filter, String sort, Class<?> entityClass) {
+        return toQuery(filter, sort, entityClass, null);
+    }
+
+    /**
+     * Translates an RSQL filter and a sort into an HQL query for the given entity, accepting only
+     * the given selectors in both.
+     *
+     * @param filter the RSQL filter, may be {@code null} or blank to match all entities
+     * @param sort the sort, may be {@code null} or blank to leave the order unspecified
+     * @param entityClass the entity the filter applies to
+     * @param selectors the selectors the filter and the sort may use, or {@code null} to accept
+     *        any persistent attribute
+     * @return the HQL query, with an {@code order by} clause if sorted, and its named parameters
+     * @throws RsqlException if the filter or the sort is invalid or references an unknown or not
+     *         allowed property
+     * @see #toQuery(String, Class, Set)
+     * @see #toQuery(String, String, Class)
+     */
+    public static RsqlQuery toQuery(String filter, String sort, Class<?> entityClass, Set<String> selectors) {
         Objects.requireNonNull(entityClass, "entityClass");
         HqlBuilder builder = new HqlBuilder(entityType(entityClass), selectors);
         if (filter == null || filter.isBlank()) {
-            return builder.build(null);
+            return builder.build(null, sort);
         }
         Node node;
         try {
@@ -80,7 +116,7 @@ public final class Rsql {
         } catch (RSQLParserException ex) {
             throw new RsqlException("Invalid RSQL filter: " + filter, ex);
         }
-        return builder.build(node);
+        return builder.build(node, sort);
     }
 
     /**

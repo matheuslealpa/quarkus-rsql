@@ -14,11 +14,14 @@ import jakarta.persistence.EntityManagerFactory;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import io.github.matheuslealpa.rsql.Rsql;
 import io.github.matheuslealpa.rsql.RsqlException;
 import io.github.matheuslealpa.rsql.RsqlFilter;
 import io.github.matheuslealpa.rsql.RsqlQuery;
+import io.github.matheuslealpa.rsql.RsqlSort;
 import io.github.matheuslealpa.rsql.test.Fruit.Color;
 import io.quarkus.test.QuarkusExtensionTest;
 
@@ -247,6 +250,66 @@ class RsqlTest {
                 .withMessage("Invalid RSQL filter: name==");
         assertThatExceptionOfType(RsqlException.class)
                 .isThrownBy(() -> RsqlFilter.fromString("weight==1").toQuery(Fruit.class, Set.of("name")))
+                .withMessage("Unknown property 'weight' for Fruit");
+    }
+
+    @Test
+    void toQueryWhenSortThenOrderBy() {
+        assertThat(query(Rsql.toQuery(null, "-weight,name", Fruit.class)).query())
+                .isEqualTo("select r from Fruit r order by r.weight desc, r.name asc");
+        assertThat(query(Rsql.toQuery(null, " id , -harvested ", Fruit.class)).query())
+                .isEqualTo("select r from Fruit r order by r.id asc, r.harvested desc");
+    }
+
+    @Test
+    void toQueryWhenSortIsNullOrBlankThenNoOrderBy() {
+        assertThat(Rsql.toQuery("name==Apple", null, Fruit.class).query()).isEqualTo(FROM + "r.name = :p0");
+        assertThat(Rsql.toQuery("name==Apple", " ", Fruit.class).query()).isEqualTo(FROM + "r.name = :p0");
+    }
+
+    @Test
+    void toQueryWhenSortThroughAssociationsThenSharesJoinsWithFilter() {
+        RsqlQuery query = query(Rsql.toQuery("farm.name==Sunny", "farm.owner.name,-farm.address.city", Fruit.class));
+        assertThat(query.query()).isEqualTo("select r from Fruit r left join r.farm j0 left join j0.owner j1"
+                + " where j0.name = :p0 order by j1.name asc, j0.address.city desc");
+        assertThat(query.parameters()).containsExactly(entry("p0", "Sunny"));
+    }
+
+    @Test
+    void toQueryWhenSortWithSelectorsThenOnlyThoseAreAccepted() {
+        Set<String> selectors = Set.of("name", "farm.name");
+        assertThat(query(Rsql.toQuery(null, "farm.name,-name", Fruit.class, selectors)).query())
+                .isEqualTo("select r from Fruit r left join r.farm j0 order by j0.name asc, r.name desc");
+        assertThatExceptionOfType(RsqlException.class)
+                .isThrownBy(() -> Rsql.toQuery(null, "-weight", Fruit.class, selectors))
+                .withMessage("Unknown property 'weight' for Fruit");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "unknown                      | Unknown property 'unknown' for Fruit",
+            "supplierCode                 | Unknown property 'supplierCode' for Fruit",
+            "label                        | Unknown property 'label' for Fruit",
+            "farm.owner.passwordHash      | Unknown property 'farm.owner.passwordHash' for Fruit",
+            "'name desc; drop table x'    | Unknown property 'name desc; drop table x' for Fruit",
+            "farm                         | Property 'farm' can't be sorted, only basic properties can",
+            "farm.address                 | Property 'farm.address' can't be sorted, only basic properties can",
+            "tags                         | Collection property 'tags' isn't supported in 'tags'",
+            "'name,,id'                   | Invalid RSQL sort: name,,id",
+            "'-'                          | Invalid RSQL sort: -" })
+    void toQueryWhenInvalidSortThenException(String sort, String message) {
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> Rsql.toQuery(null, sort, Fruit.class))
+                .withMessage(message);
+    }
+
+    @Test
+    void rsqlFilterWhenSortThenOrderBy() {
+        RsqlFilter filter = RsqlFilter.fromString("color==RED");
+        assertThat(query(filter.toQuery(Fruit.class, RsqlSort.fromString("-farm.name"))).query())
+                .isEqualTo("select r from Fruit r left join r.farm j0 where r.color = :p0 order by j0.name desc");
+        assertThat(filter.toQuery(Fruit.class, (RsqlSort) null)).isEqualTo(filter.toQuery(Fruit.class));
+        assertThatExceptionOfType(RsqlException.class)
+                .isThrownBy(() -> filter.toQuery(Fruit.class, RsqlSort.fromString("weight"), Set.of("color")))
                 .withMessage("Unknown property 'weight' for Fruit");
     }
 

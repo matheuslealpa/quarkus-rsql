@@ -15,15 +15,17 @@ import io.github.matheuslealpa.rsql.Rsql;
 import io.github.matheuslealpa.rsql.RsqlException;
 import io.github.matheuslealpa.rsql.RsqlFilter;
 import io.github.matheuslealpa.rsql.RsqlQuery;
+import io.github.matheuslealpa.rsql.RsqlSort;
 import io.quarkus.panache.common.Sort;
 
 @Path("/fruits")
 public class FruitResource {
 
     @GET
-    public List<String> list(@QueryParam("filter") String filter) {
-        RsqlQuery query = Rsql.toQuery(filter, Fruit.class);
-        return Fruit.<Fruit> find(query.query(), Sort.by(Rsql.ALIAS + ".id"), query.parameters())
+    public List<String> list(@QueryParam("filter") @DefaultValue("") RsqlFilter filter,
+            @QueryParam("sort") @DefaultValue("id") RsqlSort sort) {
+        RsqlQuery query = filter.toQuery(Fruit.class, sort);
+        return Fruit.<Fruit> find(query.query(), query.parameters())
                 .stream()
                 .map((fruit) -> fruit.name)
                 .toList();

@@ -59,6 +59,19 @@ class FruitResourceTest {
     }
 
     @Test
+    void countWhenNoFilterThenAll() {
+        given().when().get("/fruits/count").then().statusCode(200).body(org.hamcrest.Matchers.is("5"));
+    }
+
+    @Test
+    void countWhenInvalidFilterThenBadRequest() {
+        given().queryParam("filter", "name==")
+                .when().get("/fruits/count")
+                .then().statusCode(400)
+                .body(containsString("Invalid RSQL filter"));
+    }
+
+    @Test
     void listWhenWildcardWouldMatchLikeSpecialCharactersThenTheyAreLiteral() {
         given().queryParam("filter", "name==*%*")
                 .when().get("/fruits")

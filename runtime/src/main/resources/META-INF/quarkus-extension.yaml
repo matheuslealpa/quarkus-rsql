@@ -1,0 +1,13 @@
+name: RSQL
+description: Filter Hibernate ORM with Panache entities using RSQL query strings
+metadata:
+  keywords:
+    - rsql
+    - fiql
+    - filter
+    - query
+    - panache
+    - hibernate-orm
+  categories:
+    - "data"
+  status: "experimental"

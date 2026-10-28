@@ -28,7 +28,7 @@ Hide sensitive attributes with `@RsqlIgnore`, or accept only some selectors with
 <dependency>
     <groupId>io.github.matheuslealpa</groupId>
     <artifactId>quarkus-rsql</artifactId>
-    <version>1.0.0-RC2</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 

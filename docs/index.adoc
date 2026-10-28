@@ -16,7 +16,7 @@ With Maven, add the following to your `pom.xml`:
 <dependency>
     <groupId>io.github.matheuslealpa</groupId>
     <artifactId>quarkus-rsql</artifactId>
-    <version>1.0.0-RC2</version>
+    <version>1.0.0</version>
 </dependency>
 ----
 
@@ -24,7 +24,7 @@ With Gradle, add the following to your `build.gradle`:
 
 [source,gradle]
 ----
-implementation("io.github.matheuslealpa:quarkus-rsql:1.0.0-RC2")
+implementation("io.github.matheuslealpa:quarkus-rsql:1.0.0")
 ----
 
 == Usage

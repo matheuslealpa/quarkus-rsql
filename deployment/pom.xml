@@ -26,11 +26,6 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit-internal</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jdbc-h2-deployment</artifactId>
             <scope>test</scope>
         </dependency>
@@ -62,4 +57,38 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>junit</id>
+            <activation>
+                <property>
+                    <name>!legacy-junit</name>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-junit-internal</artifactId>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <!-- Até o Quarkus 3.30, os artefatos de teste têm o sufixo junit5. -->
+        <profile>
+            <id>legacy-junit</id>
+            <activation>
+                <property>
+                    <name>legacy-junit</name>
+                </property>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-junit5-internal</artifactId>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

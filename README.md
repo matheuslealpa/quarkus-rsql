@@ -28,13 +28,13 @@ Hide sensitive attributes with `@RsqlIgnore`, or accept only some selectors with
 <dependency>
     <groupId>io.github.matheuslealpa</groupId>
     <artifactId>quarkus-rsql</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
 See the [documentation](docs/index.adoc) for details.
 
-> **Status:** experimental. Collections in paths (`tags.name`) and native mode aren't supported yet.
+> **Status:** preview. Collections in paths (`tags.name`) and native mode aren't supported yet.
 
 ## Building
 

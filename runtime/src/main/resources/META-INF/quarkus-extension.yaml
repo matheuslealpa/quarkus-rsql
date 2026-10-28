@@ -10,4 +10,5 @@ metadata:
     - hibernate-orm
   categories:
     - "data"
-  status: "experimental"
+  status: "preview"
+  guide: "https://github.com/matheuslealpa/quarkus-rsql/blob/master/docs/index.adoc"

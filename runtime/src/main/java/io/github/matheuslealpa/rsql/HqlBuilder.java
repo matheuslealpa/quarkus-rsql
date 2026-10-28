@@ -1,6 +1,5 @@
 package io.github.matheuslealpa.rsql;
 
-import java.lang.reflect.AnnotatedElement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -23,6 +22,7 @@ import cz.jirutka.rsql.parser.ast.Node;
 import cz.jirutka.rsql.parser.ast.OrNode;
 import cz.jirutka.rsql.parser.ast.RSQLOperators;
 import cz.jirutka.rsql.parser.ast.RSQLVisitor;
+import io.github.matheuslealpa.rsql.runtime.IgnoredAttributes;
 
 /**
  * Builds an HQL query from an RSQL node tree and a sort. Not thread-safe; create one per filter.
@@ -216,38 +216,16 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
 
     /**
      * Whether the attribute is annotated with {@link RsqlIgnore}, on its field or on its getter,
-     * whichever of them Hibernate ORM uses to access it.
+     * whichever of them Hibernate ORM uses to access it. The annotated members are collected at
+     * build time, so no reflection is needed.
      */
     private static boolean isIgnored(ManagedType<?> type, Attribute<?, ?> attribute) {
-        if (attribute.getJavaMember() instanceof AnnotatedElement member && member.isAnnotationPresent(RsqlIgnore.class)) {
-            return true;
-        }
         String name = attribute.getName();
         String capitalized = Character.toUpperCase(name.charAt(0)) + name.substring(1);
         for (Class<?> declaringType = type.getJavaType(); declaringType != null
                 && declaringType != Object.class; declaringType = declaringType.getSuperclass()) {
-            if (isAnnotated(declaringType, name, "get" + capitalized, "is" + capitalized)) {
+            if (IgnoredAttributes.contains(declaringType, name, "get" + capitalized, "is" + capitalized)) {
                 return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean isAnnotated(Class<?> declaringType, String field, String... getters) {
-        try {
-            if (declaringType.getDeclaredField(field).isAnnotationPresent(RsqlIgnore.class)) {
-                return true;
-            }
-        } catch (NoSuchFieldException ex) {
-            // Not declared on this type
-        }
-        for (String getter : getters) {
-            try {
-                if (declaringType.getDeclaredMethod(getter).isAnnotationPresent(RsqlIgnore.class)) {
-                    return true;
-                }
-            } catch (NoSuchMethodException ex) {
-                // Not declared on this type
             }
         }
         return false;

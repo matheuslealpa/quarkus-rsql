@@ -19,3 +19,24 @@ jobs:
           java-version: "25"
           cache: maven
       - run: mvn -B -ntp clean verify -Dno-format
+
+  # Verifica a compatibilidade com as versões LTS mais antigas suportadas.
+  compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - quarkus: "3.27.6"
+            args: "-Dlegacy-junit"
+          - quarkus: "3.33.4"
+            args: ""
+    name: compat (Quarkus ${{ matrix.quarkus }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: corretto
+          java-version: "17"
+          cache: maven
+      - run: mvn -B -ntp clean verify -Dno-format -Dquarkus.version=${{ matrix.quarkus }} ${{ matrix.args }}

@@ -5,7 +5,7 @@ It works with Hibernate ORM with Panache and with plain HQL/JPQL.
 
 == Installation
 
-The extension requires Java 17 or later and Quarkus 3.x, and has been tested on Java 17, 21 and 25 with Quarkus 3.40.
+The extension requires Java 17 or later and Quarkus 3.27 or later, and has been tested on Java 17, 21 and 25 with Quarkus 3.27, 3.33 and 3.40.
 
 Add the `io.github.matheuslealpa:quarkus-rsql` dependency to your build file.
 

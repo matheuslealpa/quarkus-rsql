@@ -19,7 +19,7 @@ Hide sensitive attributes with `@RsqlIgnore`, or accept only some selectors with
 ## Requirements
 
 * Java 17 or later (tested on 17, 21 and 25)
-* Quarkus 3.x (tested with 3.40)
+* Quarkus 3.27 or later (tested with 3.27, 3.33 and 3.40)
 * Hibernate ORM, with or without Panache
 
 ## Installation

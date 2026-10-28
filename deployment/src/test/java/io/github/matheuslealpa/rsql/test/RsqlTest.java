@@ -23,14 +23,15 @@ import io.github.matheuslealpa.rsql.RsqlFilter;
 import io.github.matheuslealpa.rsql.RsqlQuery;
 import io.github.matheuslealpa.rsql.RsqlSort;
 import io.github.matheuslealpa.rsql.test.Fruit.Color;
-import io.quarkus.test.QuarkusExtensionTest;
+import io.quarkus.test.QuarkusUnitTest;
 
 class RsqlTest {
 
     private static final String FROM = "select r from Fruit r where ";
 
+    // QuarkusUnitTest, deprecated since Quarkus 3.35, is the only test extension of Quarkus 3.27
     @RegisterExtension
-    static final QuarkusExtensionTest unitTest = new QuarkusExtensionTest()
+    static final QuarkusUnitTest unitTest = new QuarkusUnitTest()
             .withApplicationRoot((jar) -> jar.addClasses(BaseEntity.class, Fruit.class, Farm.class, Address.class,
                     Owner.class, Vegetable.class))
             .overrideConfigKey("quarkus.datasource.db-kind", "h2")

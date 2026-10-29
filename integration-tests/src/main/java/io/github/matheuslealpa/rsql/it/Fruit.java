@@ -1,7 +1,9 @@
 package io.github.matheuslealpa.rsql.it;
 
 import java.time.LocalDate;
+import java.util.List;
 
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -27,6 +29,9 @@ public class Fruit extends PanacheEntity {
 
     @ManyToOne
     public Farm farm;
+
+    @ElementCollection
+    public List<String> tags;
 
     @Transient
     public String label;

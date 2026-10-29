@@ -12,7 +12,9 @@ import jakarta.persistence.metamodel.Attribute;
 import jakarta.persistence.metamodel.Attribute.PersistentAttributeType;
 import jakarta.persistence.metamodel.EntityType;
 import jakarta.persistence.metamodel.ManagedType;
+import jakarta.persistence.metamodel.PluralAttribute;
 import jakarta.persistence.metamodel.SingularAttribute;
+import jakarta.persistence.metamodel.Type;
 
 import cz.jirutka.rsql.parser.ast.AndNode;
 import cz.jirutka.rsql.parser.ast.ComparisonNode;
@@ -32,6 +34,10 @@ import io.github.matheuslealpa.rsql.runtime.IgnoredAttributes;
  * <p>
  * Associations to other entities are joined with left joins, so that entities whose
  * association is {@code null} are still matched by the other conditions of an {@code or}.
+ * <p>
+ * Collections are restricted with correlated subqueries, one per comparison, so that the entity
+ * is never duplicated: {@code fruits.name==Apple} matches the farms with some fruit named Apple,
+ * and {@code fruits.name!=Apple} the farms with no fruit named Apple.
  */
 final class HqlBuilder implements RSQLVisitor<String, Void> {
 
@@ -51,6 +57,14 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
      * Joined association paths, such as {@code r.farm}, mapped to their alias.
      */
     private final Map<String, String> joins = new LinkedHashMap<>();
+
+    /**
+     * Counters of the aliases of the joins and of the collection subqueries, unique in the whole
+     * query.
+     */
+    private int joinCount;
+
+    private int scopeCount;
 
     HqlBuilder(EntityType<?> entityType, Set<String> selectors) {
         this.entityType = entityType;
@@ -87,9 +101,36 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         String selector = node.getSelector();
         Property property = resolve(selector);
         String path = property.path();
-        Class<?> type = property.type();
+        List<Scope> scopes = property.scopes();
         ComparisonOperator operator = node.getOperator();
-        List<String> arguments = node.getArguments();
+        if (property.collection()) {
+            boolean isNull = operator.equals(RSQLOperators.IS_NULL);
+            if (isNull || operator.equals(RSQLOperators.NOT_NULL)) {
+                // On the collection itself, null means empty
+                return exists(path + (isNull ? " is empty" : " is not empty"), scopes, false);
+            }
+            // Any other operator compares the elements, which must be basic values
+            if (property.managedElements()) {
+                throw new RsqlException("Property '" + selector + "' is a collection of entities or embeddables,"
+                        + " compare a property of its elements instead");
+            }
+            String alias = "c" + this.scopeCount++;
+            scopes = new ArrayList<>(scopes);
+            scopes.add(new Scope(path, alias, Map.of()));
+            path = alias;
+        }
+        // Through a collection, "no element matches" is more useful than "some element doesn't"
+        boolean negate = !scopes.isEmpty()
+                && (operator.equals(RSQLOperators.NOT_EQUAL) || operator.equals(RSQLOperators.NOT_IN));
+        if (negate) {
+            operator = operator.equals(RSQLOperators.NOT_EQUAL) ? RSQLOperators.EQUAL : RSQLOperators.IN;
+        }
+        String restriction = restriction(path, property.type(), operator, node.getArguments(), selector);
+        return exists(restriction, scopes, negate);
+    }
+
+    private String restriction(String path, Class<?> type, ComparisonOperator operator, List<String> arguments,
+            String selector) {
         if (operator.equals(RSQLOperators.IS_NULL)) {
             return path + " is null";
         }
@@ -138,6 +179,9 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
                 throw new RsqlException("Invalid RSQL sort: " + sort);
             }
             Property property = resolve(selector);
+            if (property.collection() || !property.scopes().isEmpty()) {
+                throw new RsqlException("Property '" + selector + "' can't be sorted, it's a collection or goes through one");
+            }
             if (property.attributeType() != PersistentAttributeType.BASIC) {
                 throw new RsqlException("Property '" + selector + "' can't be sorted, only basic properties can");
             }
@@ -159,9 +203,10 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
     }
 
     /**
-     * Resolves a selector such as {@code name} or {@code farm.address.city} to its HQL path
-     * and Java type. Intermediate segments must be single-valued associations, which are
-     * joined, or embeddables.
+     * Resolves a selector such as {@code name}, {@code farm.address.city} or {@code fruits.name}
+     * to its HQL path and Java type. Intermediate segments must be single-valued associations,
+     * which are joined, embeddables, or collections, each of which opens a correlated subquery
+     * over its elements.
      */
     private Property resolve(String selector) {
         if (this.selectors != null && !this.selectors.contains(selector)) {
@@ -170,27 +215,63 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         String[] segments = selector.split("\\.", -1);
         String path = ROOT_ALIAS;
         ManagedType<?> type = this.entityType;
+        Map<String, String> joins = this.joins;
+        List<Scope> scopes = new ArrayList<>();
         for (int i = 0; i < segments.length; i++) {
             Attribute<?, ?> attribute = findAttribute(type, segments[i]);
             if (attribute == null) {
                 throw unknownProperty(selector);
             }
-            if (attribute.isCollection()) {
-                throw new RsqlException("Collection property '" + segments[i] + "' isn't supported in '" + selector + "'");
-            }
             String attributePath = path + "." + segments[i];
-            if (i == segments.length - 1) {
-                return new Property(attributePath, attribute.getJavaType(), attribute.getPersistentAttributeType());
+            boolean last = i == segments.length - 1;
+            if (attribute instanceof PluralAttribute<?, ?, ?> plural) {
+                if (plural.getCollectionType() == PluralAttribute.CollectionType.MAP) {
+                    throw new RsqlException("Map property '" + segments[i] + "' isn't supported in '" + selector + "'");
+                }
+                Type<?> elementType = plural.getElementType();
+                boolean managedElements = elementType instanceof ManagedType;
+                if (last) {
+                    return new Property(attributePath, elementType.getJavaType(), attribute.getPersistentAttributeType(),
+                            scopes, true, managedElements);
+                }
+                if (!managedElements) {
+                    throw unknownProperty(selector);
+                }
+                ManagedType<?> managed = (ManagedType<?>) elementType;
+                String alias = "c" + this.scopeCount++;
+                joins = new LinkedHashMap<>();
+                scopes.add(new Scope(attributePath, alias, joins));
+                path = alias;
+                type = managed;
+                continue;
+            }
+            if (last) {
+                return new Property(attributePath, attribute.getJavaType(), attribute.getPersistentAttributeType(), scopes,
+                        false, false);
             }
             path = switch (attribute.getPersistentAttributeType()) {
                 case EMBEDDED -> attributePath;
-                case MANY_TO_ONE, ONE_TO_ONE ->
-                    this.joins.computeIfAbsent(attributePath, (key) -> "j" + this.joins.size());
+                case MANY_TO_ONE, ONE_TO_ONE -> joins.computeIfAbsent(attributePath, (key) -> "j" + this.joinCount++);
                 default -> throw unknownProperty(selector);
             };
             type = (ManagedType<?>) ((SingularAttribute<?, ?>) attribute).getType();
         }
         throw new IllegalStateException("Empty selector");
+    }
+
+    /**
+     * Wraps the restriction in the correlated subqueries of the collections its path goes through,
+     * innermost first, and negates the result if asked.
+     */
+    private static String exists(String restriction, List<Scope> scopes, boolean negate) {
+        for (int i = scopes.size() - 1; i >= 0; i--) {
+            Scope scope = scopes.get(i);
+            StringBuilder subquery = new StringBuilder("exists (select 1 from ").append(scope.path()).append(' ')
+                    .append(scope.alias());
+            scope.joins().forEach((path, alias) -> subquery.append(" left join ").append(path).append(' ').append(alias));
+            restriction = subquery.append(" where ").append(restriction).append(')').toString();
+        }
+        return negate ? "not " + restriction : restriction;
     }
 
     private RsqlException unknownProperty(String selector) {
@@ -259,7 +340,21 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
         return pattern.toString();
     }
 
-    private record Property(String path, Class<?> type, PersistentAttributeType attributeType) {
+    /**
+     * A resolved selector: its HQL path, relative to the innermost scope, the type its values are
+     * converted to, and the scopes of the collections it goes through. When it ends at a
+     * {@code collection}, the path is the collection's, the type is its elements', which are
+     * {@code managedElements} if they are entities or embeddables rather than basic values.
+     */
+    private record Property(String path, Class<?> type, PersistentAttributeType attributeType, List<Scope> scopes,
+            boolean collection, boolean managedElements) {
+    }
+
+    /**
+     * A correlated subquery over the elements of a collection, such as {@code r.fruits c0}, and
+     * the association paths joined inside it, mapped to their alias.
+     */
+    private record Scope(String path, String alias, Map<String, String> joins) {
     }
 
 }

@@ -38,7 +38,15 @@ class FruitResourceTest {
             "farm.name==*Farm;color==GREEN       | Green Apple,50%_Off Pear",
             "farm=null=                          | Banana,Lime",
             "farm.name==\"Sunny Farm\",name==Lime  | Apple,Green Apple,Lime",
-            "farm.country!=BR,weight=lt=100      | Lime,50%_Off Pear" })
+            "farm.country!=BR,weight=lt=100      | Lime,50%_Off Pear",
+            "tags==fresh                         | Apple,Green Apple",
+            "tags==pro*                          | Apple,Banana,50%_Off Pear",
+            "tags!=promo                         | Green Apple,Lime",
+            "tags=in=(fresh,imported)            | Apple,Green Apple,50%_Off Pear",
+            "tags=out=(fresh,promo)              | Lime",
+            "tags=null=                          | Lime",
+            "tags=notnull=;color==GREEN          | Green Apple,50%_Off Pear",
+            "tags==fresh;tags==promo             | Apple" })
     void listWhenFilterThenMatchingFruits(String filter, String expected) {
         given().queryParam("filter", filter)
                 .when().get("/fruits")
@@ -50,7 +58,8 @@ class FruitResourceTest {
     @CsvSource(delimiter = '|', value = {
             "                                    | 5",
             "color==GREEN                        | 3",
-            "farm.name==\"Sunny Farm\",name==Lime  | 3" })
+            "farm.name==\"Sunny Farm\",name==Lime  | 3",
+            "tags==promo                         | 3" })
     void countWhenFilterThenMatchingCount(String filter, long expected) {
         given().queryParam("filter", filter == null ? "" : filter)
                 .when().get("/fruits/count")

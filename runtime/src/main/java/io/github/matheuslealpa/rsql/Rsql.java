@@ -7,11 +7,15 @@ import jakarta.enterprise.inject.Any;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.metamodel.EntityType;
 
+import org.eclipse.microprofile.config.ConfigProvider;
+
 import cz.jirutka.rsql.parser.RSQLParser;
 import cz.jirutka.rsql.parser.RSQLParserException;
 import cz.jirutka.rsql.parser.ast.Node;
+import io.github.matheuslealpa.rsql.runtime.RsqlRuntimeConfig;
 import io.quarkus.arc.Arc;
 import io.quarkus.arc.ArcContainer;
+import io.smallrye.config.SmallRyeConfig;
 
 /**
  * Translates RSQL filters into Hibernate ORM (HQL) queries.
@@ -28,6 +32,10 @@ import io.quarkus.arc.ArcContainer;
  * Hibernate ORM metamodel. Attributes annotated with {@link RsqlIgnore} are never filterable, and
  * {@link #toQuery(String, Class, Set)} restricts the selectors further. Values are always bound as
  * named parameters, so a filter can't inject arbitrary HQL.
+ * <p>
+ * Filters and sorts are bounded in length, number of comparisons and values, as configured by the
+ * {@code quarkus.rsql.max-*} properties, so that a client can't make the database work arbitrarily
+ * hard.
  */
 public final class Rsql {
 
@@ -48,7 +56,8 @@ public final class Rsql {
      * @param filter the RSQL filter, may be {@code null} or blank to match all entities
      * @param entityClass the entity the filter applies to
      * @return the HQL query and its named parameters
-     * @throws RsqlException if the filter is invalid or references an unknown property
+     * @throws RsqlException if the filter is invalid, exceeds a configured limit or references an
+     *         unknown property
      */
     public static RsqlQuery toQuery(String filter, Class<?> entityClass) {
         return toQuery(filter, null, entityClass, null);
@@ -65,8 +74,8 @@ public final class Rsql {
      * @param entityClass the entity the filter applies to
      * @param selectors the selectors the filter may use
      * @return the HQL query and its named parameters
-     * @throws RsqlException if the filter is invalid or references an unknown or not allowed
-     *         property
+     * @throws RsqlException if the filter is invalid, exceeds a configured limit or references an
+     *         unknown or not allowed property
      */
     public static RsqlQuery toQuery(String filter, Class<?> entityClass, Set<String> selectors) {
         return toQuery(filter, null, entityClass, selectors);
@@ -83,7 +92,8 @@ public final class Rsql {
      * @param sort the sort, may be {@code null} or blank to leave the order unspecified
      * @param entityClass the entity the filter applies to
      * @return the HQL query, with an {@code order by} clause if sorted, and its named parameters
-     * @throws RsqlException if the filter or the sort is invalid or references an unknown property
+     * @throws RsqlException if the filter or the sort is invalid, exceeds a configured limit or
+     *         references an unknown property
      */
     public static RsqlQuery toQuery(String filter, String sort, Class<?> entityClass) {
         return toQuery(filter, sort, entityClass, null);
@@ -99,14 +109,20 @@ public final class Rsql {
      * @param selectors the selectors the filter and the sort may use, or {@code null} to accept
      *        any persistent attribute
      * @return the HQL query, with an {@code order by} clause if sorted, and its named parameters
-     * @throws RsqlException if the filter or the sort is invalid or references an unknown or not
-     *         allowed property
+     * @throws RsqlException if the filter or the sort is invalid, exceeds a configured limit or
+     *         references an unknown or not allowed property
      * @see #toQuery(String, Class, Set)
      * @see #toQuery(String, String, Class)
      */
     public static RsqlQuery toQuery(String filter, String sort, Class<?> entityClass, Set<String> selectors) {
         Objects.requireNonNull(entityClass, "entityClass");
-        HqlBuilder builder = new HqlBuilder(entityType(entityClass), selectors);
+        RsqlRuntimeConfig config = ConfigProvider.getConfig().unwrap(SmallRyeConfig.class)
+                .getConfigMapping(RsqlRuntimeConfig.class);
+        // Before any other work, so that oversized input is rejected cheaply
+        checkLength("filter", filter, config.maxFilterLength());
+        checkLength("sort", sort, config.maxFilterLength());
+        HqlBuilder builder = new HqlBuilder(entityType(entityClass), selectors, config.maxComparisons(),
+                config.maxInValues());
         if (filter == null || filter.isBlank()) {
             return builder.build(null, sort);
         }
@@ -117,6 +133,17 @@ public final class Rsql {
             throw new RsqlException("Invalid RSQL filter: " + filter, ex);
         }
         return builder.build(node, sort);
+    }
+
+    /**
+     * Rejects a filter or a sort longer than the limit, without repeating it in the message, where
+     * it would be too long to be useful.
+     */
+    private static void checkLength(String name, String value, int maxLength) {
+        if (value != null && value.length() > maxLength) {
+            throw new RsqlException("RSQL " + name + " is too long: " + value.length() + " characters, the maximum is "
+                    + maxLength);
+        }
     }
 
     /**

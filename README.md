@@ -16,6 +16,7 @@ Selectors can be fields of the entity or paths through its associations, embedda
 Selectors must be persistent attributes of the entity, and values are always bound as parameters, so filters can't inject HQL.
 Hide sensitive attributes with `@RsqlIgnore`, or accept only some selectors with `Rsql.toQuery(filter, Fruit.class, Set.of("name", "farm.name"))`.
 Invalid filters are reported as `400 Bad Request` when Quarkus REST is present.
+Filters are bounded in length, number of comparisons and `=in=` values, see the [documentation](docs/index.adoc#security).
 
 ## Requirements
 

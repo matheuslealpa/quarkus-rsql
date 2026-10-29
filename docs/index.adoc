@@ -166,6 +166,20 @@ RsqlQuery query = Rsql.toQuery(filter, Fruit.class, Set.of("name", "color", "far
 
 Ignored attributes and selectors that aren't accepted are rejected as unknown properties, so that their existence isn't revealed.
 
+Filters are bounded, so that a client can't make the parser and the database work arbitrarily hard.
+A filter that exceeds a limit throws an `RsqlException`, like any invalid filter.
+The limits are runtime properties, shown here with their defaults:
+
+[source,properties]
+----
+# Maximum length of a filter, and of a sort, in characters
+quarkus.rsql.max-filter-length=2048
+# Maximum number of comparisons, such as name==Apple, in a filter
+quarkus.rsql.max-comparisons=64
+# Maximum number of values of an =in= or =out= comparison
+quarkus.rsql.max-in-values=256
+----
+
 === Error handling
 
 An invalid filter, an unknown property or a value of the wrong type throws an `RsqlException`.

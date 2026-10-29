@@ -31,4 +31,11 @@ public interface RsqlRuntimeConfig {
     @WithDefault("256")
     int maxInValues();
 
+    /**
+     * The maximum nesting depth of the parentheses in a filter, including those around the values
+     * of {@code =in=} and {@code =out=}, checked before parsing it, since the parser is recursive.
+     */
+    @WithDefault("32")
+    int maxDepth();
+
 }

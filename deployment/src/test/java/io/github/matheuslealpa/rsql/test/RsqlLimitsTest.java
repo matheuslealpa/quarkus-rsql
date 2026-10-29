@@ -23,7 +23,8 @@ class RsqlLimitsTest {
             .overrideConfigKey("quarkus.hibernate-orm.schema-management.strategy", "drop-and-create")
             .overrideConfigKey("quarkus.rsql.max-filter-length", "40")
             .overrideConfigKey("quarkus.rsql.max-comparisons", "3")
-            .overrideConfigKey("quarkus.rsql.max-in-values", "3");
+            .overrideConfigKey("quarkus.rsql.max-in-values", "3")
+            .overrideConfigKey("quarkus.rsql.max-depth", "2");
 
     @Test
     void toQueryWhenFilterIsTooLongThenException() {
@@ -40,6 +41,15 @@ class RsqlLimitsTest {
         assertThatExceptionOfType(RsqlException.class)
                 .isThrownBy(() -> Rsql.toQuery(null, sort + "name,id", Fruit.class))
                 .withMessage("RSQL sort is too long: 42 characters, the maximum is 40");
+    }
+
+    @Test
+    void toQueryWhenNestedTooDeeplyThenException() {
+        assertThatNoException().isThrownBy(() -> Rsql.toQuery("(name==a,color=in=(RED))", Fruit.class));
+        assertThatNoException().isThrownBy(() -> Rsql.toQuery("((name=='((('))", Fruit.class));
+        assertThatExceptionOfType(RsqlException.class)
+                .isThrownBy(() -> Rsql.toQuery("((name==a;(color==RED)))", Fruit.class))
+                .withMessage("RSQL filter is nested too deeply, the maximum depth is 2");
     }
 
     @Test

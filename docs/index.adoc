@@ -178,6 +178,8 @@ quarkus.rsql.max-filter-length=2048
 quarkus.rsql.max-comparisons=64
 # Maximum number of values of an =in= or =out= comparison
 quarkus.rsql.max-in-values=256
+# Maximum nesting depth of the parentheses in a filter, including those of =in= and =out=
+quarkus.rsql.max-depth=32
 ----
 
 === Error handling

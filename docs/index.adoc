@@ -92,7 +92,22 @@ As the query is already sorted, don't pass a `Sort` to Panache too.
 Selectors can navigate through single-valued associations (`@ManyToOne`, `@OneToOne`) and embeddables (`@Embedded`), for example `farm.name==Sunny` or `farm.address.city==Lisboa`.
 
 Associations are joined with left joins, so entities whose association is `null` are still matched by the other conditions of an `or`: `farm.name==Sunny,name==Lime` also returns fruits without a farm named `Lime`.
-An association used more than once in a filter is joined only once.
+An association used more than once in a filter is joined only once, except inside collections, where each comparison joins its own (see below).
+
+=== Collections
+
+Selectors can also go through collections (`@OneToMany`, `@ManyToMany`, `@ElementCollection`), and compare the elements of a collection of basic values directly: `fruits.name==Apple` matches the farms with some fruit named Apple, and `tags==fresh` the fruits with some tag `fresh`.
+
+Each comparison is translated to a correlated subquery (`exists`), so the entity is never duplicated and the result can be paged and sorted as usual.
+This gives the following semantics:
+
+* `tags==fresh;tags==promo` matches the entities that have some tag `fresh` and some tag `promo`, not necessarily the same element.
+* `tags!=promo` and `tags=out=(a,b)` match the entities with no such element, not those with some other element.
+* `tags=null=` and `tags=notnull=` match the entities whose collection is empty or not.
+* Collections can be nested, such as `fruits.tags==fresh`, and combined with associations, such as `fruits.farm.name==Sunny`, which are joined inside the subquery of each comparison.
+
+A collection of entities or embeddables can't be compared itself, compare a property of its elements instead: `fruits.id==1` rather than `fruits==1`.
+Selectors through a collection can't be sorted. Map collections aren't supported.
 
 === Operators
 
@@ -155,5 +170,5 @@ An invalid filter, an unknown property or a value of the wrong type throws an `R
 
 === Current limitations
 
-* Collections (`@OneToMany`, `@ManyToMany`, `@ElementCollection`) can't be used in a path yet, for example `tags.name`.
+* Map collections (`Map<K, V>` attributes) can't be used in a path.
 * Native mode hasn't been tested yet.

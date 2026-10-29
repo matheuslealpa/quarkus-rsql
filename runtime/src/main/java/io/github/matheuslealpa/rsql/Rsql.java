@@ -23,9 +23,9 @@ import io.quarkus.arc.ArcContainer;
  * List&lt;Fruit&gt; fruits = Fruit.find(query.query(), query.parameters()).list();
  * </pre>
  *
- * Selectors must match a persistent attribute of the entity, or a path through its single-valued
- * associations and embeddables such as {@code farm.name}, as described by the Hibernate ORM
- * metamodel. Attributes annotated with {@link RsqlIgnore} are never filterable, and
+ * Selectors must match a persistent attribute of the entity, or a path through its associations,
+ * embeddables and collections such as {@code farm.name} or {@code tags}, as described by the
+ * Hibernate ORM metamodel. Attributes annotated with {@link RsqlIgnore} are never filterable, and
  * {@link #toQuery(String, Class, Set)} restricts the selectors further. Values are always bound as
  * named parameters, so a filter can't inject arbitrary HQL.
  */

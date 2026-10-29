@@ -229,11 +229,86 @@ class RsqlTest {
     }
 
     @Test
-    void toQueryWhenCollectionInPathThenException() {
+    void toQueryWhenElementCollectionThenExistsOverElements() {
+        RsqlQuery query = toQuery("tags==fresh");
+        assertThat(query.query()).isEqualTo(FROM + "exists (select 1 from r.tags c0 where c0 = :p0)");
+        assertThat(query.parameters()).containsExactly(entry("p0", "fresh"));
+        assertThat(toQuery("tags==pro*").query())
+                .isEqualTo(FROM + "exists (select 1 from r.tags c0 where c0 like :p0 escape '\\')");
+        assertThat(toQuery("tags=in=(fresh,promo)").query())
+                .isEqualTo(FROM + "exists (select 1 from r.tags c0 where c0 in :p0)");
+        assertThat(toQuery("tags==fresh;tags==promo").query()).isEqualTo(FROM
+                + "(exists (select 1 from r.tags c0 where c0 = :p0) and exists (select 1 from r.tags c1 where c1 = :p1))");
+    }
+
+    @Test
+    void toQueryWhenNegativeOperatorOnCollectionThenNoElementMatches() {
+        assertThat(toQuery("tags!=promo").query())
+                .isEqualTo(FROM + "not exists (select 1 from r.tags c0 where c0 = :p0)");
+        assertThat(toQuery("tags=out=(fresh,promo)").query())
+                .isEqualTo(FROM + "not exists (select 1 from r.tags c0 where c0 in :p0)");
+        assertThat(toQuery("fruits.name!=Apple", Farm.class).query())
+                .isEqualTo("select r from Farm r where not exists (select 1 from r.fruits c0 where c0.name = :p0)");
+    }
+
+    @Test
+    void toQueryWhenNullOnCollectionThenEmpty() {
+        assertThat(toQuery("tags=null=").query()).isEqualTo(FROM + "r.tags is empty");
+        assertThat(toQuery("tags=notnull=").query()).isEqualTo(FROM + "r.tags is not empty");
+        assertThat(toQuery("fruits.tags=null=", Farm.class).query())
+                .isEqualTo("select r from Farm r where exists (select 1 from r.fruits c0 where c0.tags is empty)");
+    }
+
+    @Test
+    void toQueryWhenEntityCollectionThenExistsOverEntities() {
+        RsqlQuery query = toQuery("fruits.name==Apple", Farm.class);
+        assertThat(query.query())
+                .isEqualTo("select r from Farm r where exists (select 1 from r.fruits c0 where c0.name = :p0)");
+        assertThat(query.parameters()).containsExactly(entry("p0", "Apple"));
+        assertThat(toQuery("fruits.weight=gt=100", Farm.class).parameters()).containsExactly(entry("p0", 100));
+        assertThat(toQuery("fruits.tags==fresh", Farm.class).query()).isEqualTo("select r from Farm r where "
+                + "exists (select 1 from r.fruits c0 where exists (select 1 from c0.tags c1 where c1 = :p0))");
+        assertThat(toQuery("fruits.farm.owner.name==Ann", Farm.class).query()).isEqualTo("select r from Farm r where "
+                + "exists (select 1 from r.fruits c0 left join c0.farm j0 left join j0.owner j1 where j1.name = :p0)");
+    }
+
+    @Test
+    void toQueryWhenUnknownPropertyThroughCollectionThenException() {
         assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("tags.name==x"))
-                .withMessage("Collection property 'tags' isn't supported in 'tags.name'");
-        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("tags==x"))
-                .withMessage("Collection property 'tags' isn't supported in 'tags'");
+                .withMessage("Unknown property 'tags.name' for Fruit");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("fruits.supplierCode==x", Farm.class))
+                .withMessage("Unknown property 'fruits.supplierCode' for Farm");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("fruits.label==x", Farm.class))
+                .withMessage("Unknown property 'fruits.label' for Farm");
+    }
+
+    @Test
+    void toQueryWhenCollectionOfEntitiesComparedItselfThenException() {
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("fruits==1", Farm.class))
+                .withMessage("Property 'fruits' is a collection of entities or embeddables,"
+                        + " compare a property of its elements instead");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("fruits=in=(1,2)", Farm.class))
+                .withMessage("Property 'fruits' is a collection of entities or embeddables,"
+                        + " compare a property of its elements instead");
+        assertThat(toQuery("fruits=null=", Farm.class).query()).isEqualTo("select r from Farm r where r.fruits is empty");
+    }
+
+    @Test
+    void toQueryWhenMapInPathThenException() {
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("attributes==x", Farm.class))
+                .withMessage("Map property 'attributes' isn't supported in 'attributes'");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("attributes.size==x", Farm.class))
+                .withMessage("Map property 'attributes' isn't supported in 'attributes.size'");
+    }
+
+    @Test
+    void toQueryWhenSortThroughCollectionThenException() {
+        assertThatExceptionOfType(RsqlException.class)
+                .isThrownBy(() -> Rsql.toQuery(null, "fruits.name", Farm.class))
+                .withMessage("Property 'fruits.name' can't be sorted, it's a collection or goes through one");
+        assertThatExceptionOfType(RsqlException.class)
+                .isThrownBy(() -> Rsql.toQuery(null, "-fruits.tags", Farm.class))
+                .withMessage("Property 'fruits.tags' can't be sorted, it's a collection or goes through one");
     }
 
     @Test
@@ -303,7 +378,7 @@ class RsqlTest {
             "'name desc; drop table x'    | Unknown property 'name desc; drop table x' for Fruit",
             "farm                         | Property 'farm' can't be sorted, only basic properties can",
             "farm.address                 | Property 'farm.address' can't be sorted, only basic properties can",
-            "tags                         | Collection property 'tags' isn't supported in 'tags'",
+            "tags                         | Property 'tags' can't be sorted, it's a collection or goes through one",
             "'name,,id'                   | Invalid RSQL sort: name,,id",
             "'-'                          | Invalid RSQL sort: -" })
     void toQueryWhenInvalidSortThenException(String sort, String message) {

@@ -6,6 +6,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
+import java.util.Collections;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -115,6 +117,15 @@ class FruitResourceTest {
                 .then().statusCode(400)
                 .contentType(ContentType.TEXT)
                 .body(containsString("Invalid RSQL filter"));
+    }
+
+    @Test
+    void listWhenTooManyValuesThenBadRequest() {
+        String values = String.join(",", Collections.nCopies(257, "x"));
+        given().queryParam("filter", "name=in=(" + values + ")")
+                .when().get("/fruits")
+                .then().statusCode(400)
+                .body(containsString("Too many values for 'name', the maximum is 256"));
     }
 
     @Test

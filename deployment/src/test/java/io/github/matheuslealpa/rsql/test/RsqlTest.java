@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -127,6 +129,37 @@ class RsqlTest {
     void toQueryWhenUnknownPropertyThenException() {
         assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("unknown==1"))
                 .withMessage("Unknown property 'unknown' for Fruit");
+    }
+
+    @Test
+    void toQueryWhenDefaultLimitsThenFiltersAreBounded() {
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("name==" + "a".repeat(2043)))
+                .withMessage("RSQL filter is too long: 2049 characters, the maximum is 2048");
+        String comparisons = String.join(";", Collections.nCopies(64, "weight==1"));
+        assertThatNoException().isThrownBy(() -> toQuery(comparisons));
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery(comparisons + ";weight==1"))
+                .withMessage("RSQL filter has too many comparisons, the maximum is 64");
+        String values = String.join(",", Collections.nCopies(256, "a"));
+        assertThatNoException().isThrownBy(() -> toQuery("name=in=(" + values + ")"));
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery("name=in=(" + values + ",a)"))
+                .withMessage("Too many values for 'name', the maximum is 256");
+    }
+
+    @Test
+    void toQueryWhenDeeplyNestedWithinLengthThenNoStackOverflow() throws InterruptedException {
+        // As deep as the default length allows, on a stack smaller than the default one of 1 MB
+        String filter = "(".repeat(1020) + "name==a" + ")".repeat(1020);
+        AtomicReference<Object> result = new AtomicReference<>();
+        Thread thread = new Thread(null, () -> {
+            try {
+                result.set(toQuery(filter).query());
+            } catch (Throwable ex) {
+                result.set(ex);
+            }
+        }, "small-stack", 512 * 1024);
+        thread.start();
+        thread.join();
+        assertThat(result.get()).isEqualTo(FROM + "r.name = :p0");
     }
 
     @Test

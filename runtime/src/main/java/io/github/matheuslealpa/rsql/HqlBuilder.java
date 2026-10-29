@@ -66,9 +66,20 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
 
     private int scopeCount;
 
-    HqlBuilder(EntityType<?> entityType, Set<String> selectors) {
+    /**
+     * The limits on the number of comparisons in the filter and of values in each comparison.
+     */
+    private final int maxComparisons;
+
+    private final int maxInValues;
+
+    private int comparisonCount;
+
+    HqlBuilder(EntityType<?> entityType, Set<String> selectors, int maxComparisons, int maxInValues) {
         this.entityType = entityType;
         this.selectors = (selectors != null) ? Set.copyOf(selectors) : null;
+        this.maxComparisons = maxComparisons;
+        this.maxInValues = maxInValues;
     }
 
     RsqlQuery build(Node node, String sort) {
@@ -99,6 +110,12 @@ final class HqlBuilder implements RSQLVisitor<String, Void> {
     @Override
     public String visit(ComparisonNode node, Void param) {
         String selector = node.getSelector();
+        if (++this.comparisonCount > this.maxComparisons) {
+            throw new RsqlException("RSQL filter has too many comparisons, the maximum is " + this.maxComparisons);
+        }
+        if (node.getOperator().isMultiValue() && node.getArguments().size() > this.maxInValues) {
+            throw new RsqlException("Too many values for '" + selector + "', the maximum is " + this.maxInValues);
+        }
         Property property = resolve(selector);
         String path = property.path();
         List<Scope> scopes = property.scopes();

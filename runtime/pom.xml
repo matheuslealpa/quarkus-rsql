@@ -24,6 +24,12 @@
             <groupId>io.github.nstdio</groupId>
             <artifactId>rsql-parser</artifactId>
         </dependency>
+        <!-- Only for the exception mapper, registered when the application has Quarkus REST. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 
     <build>

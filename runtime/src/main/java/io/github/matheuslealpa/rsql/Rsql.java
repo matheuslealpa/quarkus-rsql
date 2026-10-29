@@ -33,9 +33,9 @@ import io.smallrye.config.SmallRyeConfig;
  * {@link #toQuery(String, Class, Set)} restricts the selectors further. Values are always bound as
  * named parameters, so a filter can't inject arbitrary HQL.
  * <p>
- * Filters and sorts are bounded in length, number of comparisons and values, as configured by the
- * {@code quarkus.rsql.max-*} properties, so that a client can't make the database work arbitrarily
- * hard.
+ * Filters and sorts are bounded in length, depth, number of comparisons and values, as configured
+ * by the {@code quarkus.rsql.max-*} properties, so that a client can't make the database work
+ * arbitrarily hard.
  */
 public final class Rsql {
 
@@ -126,6 +126,7 @@ public final class Rsql {
         if (filter == null || filter.isBlank()) {
             return builder.build(null, sort);
         }
+        checkDepth(filter, config.maxDepth());
         Node node;
         try {
             node = PARSER.parse(filter);
@@ -143,6 +144,31 @@ public final class Rsql {
         if (value != null && value.length() > maxLength) {
             throw new RsqlException("RSQL " + name + " is too long: " + value.length() + " characters, the maximum is "
                     + maxLength);
+        }
+    }
+
+    /**
+     * Rejects a filter whose parentheses are nested deeper than the limit, which could otherwise
+     * overflow the stack of the recursive parser. Parentheses in quoted values don't count.
+     */
+    private static void checkDepth(String filter, int maxDepth) {
+        int depth = 0;
+        char quote = 0;
+        for (int i = 0; i < filter.length(); i++) {
+            char c = filter.charAt(i);
+            if (quote != 0) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == quote) {
+                    quote = 0;
+                }
+            } else if (c == '\'' || c == '"') {
+                quote = c;
+            } else if (c == '(' && ++depth > maxDepth) {
+                throw new RsqlException("RSQL filter is nested too deeply, the maximum depth is " + maxDepth);
+            } else if (c == ')') {
+                depth--;
+            }
         }
     }
 

@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -146,20 +145,12 @@ class RsqlTest {
     }
 
     @Test
-    void toQueryWhenDeeplyNestedWithinLengthThenNoStackOverflow() throws InterruptedException {
-        // As deep as the default length allows, on a stack smaller than the default one of 1 MB
+    void toQueryWhenDeeplyNestedThenExceptionBeforeParsing() {
+        // As deep as the default length allows, which overflows the stack of the parser on Java 25
         String filter = "(".repeat(1020) + "name==a" + ")".repeat(1020);
-        AtomicReference<Object> result = new AtomicReference<>();
-        Thread thread = new Thread(null, () -> {
-            try {
-                result.set(toQuery(filter).query());
-            } catch (Throwable ex) {
-                result.set(ex);
-            }
-        }, "small-stack", 512 * 1024);
-        thread.start();
-        thread.join();
-        assertThat(result.get()).isEqualTo(FROM + "r.name = :p0");
+        assertThatExceptionOfType(RsqlException.class).isThrownBy(() -> toQuery(filter))
+                .withMessage("RSQL filter is nested too deeply, the maximum depth is 32");
+        assertThat(toQuery("(".repeat(32) + "name==a" + ")".repeat(32)).query()).isEqualTo(FROM + "r.name = :p0");
     }
 
     @Test

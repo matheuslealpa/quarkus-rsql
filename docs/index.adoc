@@ -166,7 +166,28 @@ RsqlQuery query = Rsql.toQuery(filter, Fruit.class, Set.of("name", "color", "far
 
 Ignored attributes and selectors that aren't accepted are rejected as unknown properties, so that their existence isn't revealed.
 
-An invalid filter, an unknown property or a value of the wrong type throws an `RsqlException`, which you can map to a `400 Bad Request` response.
+=== Error handling
+
+An invalid filter, an unknown property or a value of the wrong type throws an `RsqlException`.
+When Quarkus REST (`quarkus-rest`) is present, the extension reports it as a `400 Bad Request` response with the message as plain text, for example `Unknown property 'foo' for Fruit`.
+The message is written for clients: it never includes the generated query or the ignored properties.
+
+To respond differently, disable the built-in mapper and map the exception yourself:
+
+[source,properties]
+----
+quarkus.rsql.map-exceptions=false
+----
+
+[source,java]
+----
+@ServerExceptionMapper
+Response invalidFilter(RsqlException ex) {
+    return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", ex.getMessage())).build();
+}
+----
+
+Without Quarkus REST, nothing is registered. Classic RESTEasy (`quarkus-resteasy`) isn't supported.
 
 === Current limitations
 

@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.ContentType;
 
 @QuarkusTest
 class FruitResourceTest {
@@ -108,9 +109,11 @@ class FruitResourceTest {
 
     @Test
     void countWhenInvalidFilterThenBadRequest() {
+        // Mapped by the extension, the application has no exception mapper
         given().queryParam("filter", "name==")
                 .when().get("/fruits/count")
                 .then().statusCode(400)
+                .contentType(ContentType.TEXT)
                 .body(containsString("Invalid RSQL filter"));
     }
 

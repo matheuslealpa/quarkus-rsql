@@ -15,4 +15,12 @@ public class RsqlRecorder {
         IgnoredAttributes.set(members);
     }
 
+    /**
+     * Clears the cached entity metamodels on each start, because in dev mode the extension's
+     * classes outlive a live reload while the entities and persistence units are replaced.
+     */
+    public void clearEntityTypes() {
+        EntityTypes.clear();
+    }
+
 }

@@ -74,6 +74,15 @@ class RsqlProcessor {
     }
 
     /**
+     * Forgets the entity metamodels cached by a previous start in dev mode.
+     */
+    @BuildStep
+    @Record(ExecutionTime.STATIC_INIT)
+    void clearEntityTypes(RsqlRecorder recorder) {
+        recorder.clearEntityTypes();
+    }
+
+    /**
      * Reports invalid filters as {@code 400 Bad Request} when the application has Quarkus REST,
      * unless it prefers to map {@link RsqlException} itself.
      */

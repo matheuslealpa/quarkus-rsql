@@ -12,6 +12,7 @@ import java.util.Set;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.metamodel.EntityType;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -23,6 +24,7 @@ import io.github.matheuslealpa.rsql.RsqlException;
 import io.github.matheuslealpa.rsql.RsqlFilter;
 import io.github.matheuslealpa.rsql.RsqlQuery;
 import io.github.matheuslealpa.rsql.RsqlSort;
+import io.github.matheuslealpa.rsql.runtime.EntityTypes;
 import io.github.matheuslealpa.rsql.test.Fruit.Color;
 import io.quarkus.test.QuarkusUnitTest;
 
@@ -339,6 +341,22 @@ class RsqlTest {
     void toQueryWhenClassIsNotAnEntityThenException() {
         assertThatIllegalArgumentException().isThrownBy(() -> Rsql.toQuery("city==x", Address.class))
                 .withMessageContaining("isn't an entity of any persistence unit");
+    }
+
+    @Test
+    void entityTypesWhenLookedUpTwiceThenSameMetamodelInstance() {
+        EntityType<?> first = EntityTypes.get(Fruit.class);
+        assertThat(first).isSameAs(entityManagerFactory.getMetamodel().entity(Fruit.class));
+        assertThat(EntityTypes.get(Fruit.class)).isSameAs(first);
+    }
+
+    @Test
+    void entityTypesWhenClassIsNotAnEntityThenExceptionEveryTime() {
+        // A failed lookup isn't cached, so the class is rejected again instead of resolving to null
+        for (int i = 0; i < 2; i++) {
+            assertThatIllegalArgumentException().isThrownBy(() -> EntityTypes.get(Address.class))
+                    .withMessageContaining("isn't an entity of any persistence unit");
+        }
     }
 
     @Test

@@ -3,18 +3,13 @@ package io.github.matheuslealpa.rsql;
 import java.util.Objects;
 import java.util.Set;
 
-import jakarta.enterprise.inject.Any;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.metamodel.EntityType;
-
 import org.eclipse.microprofile.config.ConfigProvider;
 
 import cz.jirutka.rsql.parser.RSQLParser;
 import cz.jirutka.rsql.parser.RSQLParserException;
 import cz.jirutka.rsql.parser.ast.Node;
+import io.github.matheuslealpa.rsql.runtime.EntityTypes;
 import io.github.matheuslealpa.rsql.runtime.RsqlRuntimeConfig;
-import io.quarkus.arc.Arc;
-import io.quarkus.arc.ArcContainer;
 import io.smallrye.config.SmallRyeConfig;
 
 /**
@@ -121,7 +116,7 @@ public final class Rsql {
         // Before any other work, so that oversized input is rejected cheaply
         checkLength("filter", filter, config.maxFilterLength());
         checkLength("sort", sort, config.maxFilterLength());
-        HqlBuilder builder = new HqlBuilder(entityType(entityClass), selectors, config.maxComparisons(),
+        HqlBuilder builder = new HqlBuilder(EntityTypes.get(entityClass), selectors, config.maxComparisons(),
                 config.maxInValues());
         if (filter == null || filter.isBlank()) {
             return builder.build(null, sort);
@@ -170,25 +165,6 @@ public final class Rsql {
                 depth--;
             }
         }
-    }
-
-    /**
-     * Finds the metamodel of the entity in the persistence unit that manages it.
-     */
-    private static EntityType<?> entityType(Class<?> entityClass) {
-        ArcContainer container = Arc.container();
-        if (container == null) {
-            throw new IllegalStateException("Rsql requires a running Quarkus application");
-        }
-        for (EntityManagerFactory factory : container.select(EntityManagerFactory.class, Any.Literal.INSTANCE)
-                .listActive()) {
-            for (EntityType<?> type : factory.getMetamodel().getEntities()) {
-                if (type.getJavaType() == entityClass) {
-                    return type;
-                }
-            }
-        }
-        throw new IllegalArgumentException(entityClass.getName() + " isn't an entity of any persistence unit");
     }
 
 }

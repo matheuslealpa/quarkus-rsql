@@ -30,7 +30,7 @@ Filters are bounded in length, depth, number of comparisons and `=in=` values, s
 <dependency>
     <groupId>io.github.matheuslealpa</groupId>
     <artifactId>quarkus-rsql</artifactId>
-    <version>1.0.2</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 

@@ -87,6 +87,10 @@ Sort selectors follow the same rules as the filter: they must be persistent attr
 Only basic properties can be sorted, not associations or embeddables themselves.
 As the query is already sorted, don't pass a `Sort` to Panache too.
 
+The sort has no syntax for `nulls first` or `nulls last`, so null values are sorted where the database puts them by default.
+PostgreSQL and Oracle sort them last in ascending order and first in descending order, while H2, MySQL and SQL Server do the opposite.
+Add a selector that is never null, such as `id`, at the end of the sort to make the order stable.
+
 === Nested paths
 
 Selectors can navigate through single-valued associations (`@ManyToOne`, `@OneToOne`) and embeddables (`@Embedded`), for example `farm.name==Sunny` or `farm.address.city==Lisboa`.
@@ -115,7 +119,7 @@ Selectors through a collection can't be sorted. Map collections aren't supported
 |===
 |RSQL |HQL |Example
 
-|`==` |`=`, or `like` if a `String` value contains `+*+` |`name==Apple`, `name==*apple*`
+|`==` |`=`, or `like` if a `String` value contains `+*+` |`name==Apple`, `name==*Apple*`
 |`!=` |`<>`, or `not like` |`color!=RED`
 |`=gt=` or `>` |`>` |`weight=gt=100`
 |`=ge=` or `>=` |`>=` |`harvested>=2026-10-01`
@@ -134,6 +138,10 @@ Use `;` (or `and`) and `,` (or `or`) to combine conditions, and parentheses to g
 Values are converted to the type of the entity field: `String`, numbers, `BigDecimal`, `BigInteger`, `Boolean`, enums, `UUID`, `LocalDate`, `LocalDateTime`, `LocalTime`, `OffsetDateTime` and `Instant`.
 
 In a `String` comparison, `+*+` matches any sequence of characters. Other characters, including `%` and `_`, are matched literally.
+Comparisons, with or without `+*+`, follow the collation of the database column: they are case-sensitive on PostgreSQL, Oracle and H2, where `name==*apple*` doesn't match `Apple`, and case-insensitive with the default collations of MySQL and SQL Server.
+
+`Instant` values need a `Z` or an offset, such as `2026-10-01T08:00:00Z`, and `OffsetDateTime` values an offset, such as `2026-10-01T08:00:00-03:00`.
+How an `OffsetDateTime` is compared depends on how Hibernate ORM stores it: on PostgreSQL, the default `timestamptz` column compares the instant, so `2026-10-02T10:00:00-03:00` matches `2026-10-02T13:00:00Z`, but the original offset isn't kept.
 
 === Security
 
@@ -209,3 +217,5 @@ Without Quarkus REST, nothing is registered. Classic RESTEasy (`quarkus-resteasy
 
 * Map collections (`Map<K, V>` attributes) can't be used in a path.
 * Native mode hasn't been tested yet.
+* Comparisons can't be made case-insensitive on databases whose collation is case-sensitive.
+* The sort can't choose where null values go.

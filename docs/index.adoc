@@ -213,9 +213,16 @@ Response invalidFilter(RsqlException ex) {
 
 Without Quarkus REST, nothing is registered. Classic RESTEasy (`quarkus-resteasy`) isn't supported.
 
+=== Native mode
+
+The extension works in native mode without any extra configuration: no reflection or resource registration is needed.
+
+Version 1.1.0 has been tested with Quarkus 3.40 and Mandrel for JDK 25 on PostgreSQL 17, by running the tests of the https://github.com/matheuslealpa/quarkus-rsql-demo[demo project] against the native executable.
+They cover the `RsqlFilter` and `RsqlSort` parameters, paths through associations, embeddables and collections, values of type `String`, `int`, `BigDecimal`, enums, `UUID`, `LocalDate`, `Instant` and `OffsetDateTime`, `@RsqlIgnore`, the accepted selectors, the limits set at runtime and the `400 Bad Request` responses.
+Native mode isn't tested in the CI of the extension yet.
+
 === Current limitations
 
 * Map collections (`Map<K, V>` attributes) can't be used in a path.
-* Native mode hasn't been tested yet.
 * Comparisons can't be made case-insensitive on databases whose collation is case-sensitive.
 * The sort can't choose where null values go.

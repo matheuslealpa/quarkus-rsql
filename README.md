@@ -36,7 +36,7 @@ Filters are bounded in length, depth, number of comparisons and `=in=` values, s
 
 See the [documentation](docs/index.adoc) for details.
 
-> **Status:** preview. Native mode hasn't been tested yet.
+> **Status:** preview. Native mode works and has been tested with the [demo project](https://github.com/matheuslealpa/quarkus-rsql-demo), but isn't tested in CI yet.
 
 ## Building
 

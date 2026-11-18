@@ -1,5 +1,11 @@
 # Quarkus RSQL
 
+[![CI](https://github.com/matheuslealpa/quarkus-rsql/actions/workflows/ci.yml/badge.svg)](https://github.com/matheuslealpa/quarkus-rsql/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.matheuslealpa/quarkus-rsql)](https://central.sonatype.com/artifact/io.github.matheuslealpa/quarkus-rsql)
+[![License](https://img.shields.io/github/license/matheuslealpa/quarkus-rsql)](https://github.com/matheuslealpa/quarkus-rsql/blob/master/LICENSE)
+![Java](https://img.shields.io/badge/Java-17%2B-orange?logo=openjdk)
+![Quarkus](https://img.shields.io/badge/Quarkus-3.x-4695EB?logo=quarkus)
+
 Filter Hibernate ORM with Panache entities using [RSQL](https://github.com/jirutka/rsql-parser) query strings, such as `name==Apple;weight=gt=100`.
 
 ```java

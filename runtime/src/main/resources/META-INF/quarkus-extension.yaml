@@ -10,5 +10,6 @@ metadata:
     - hibernate-orm
   categories:
     - "data"
-  status: "preview"
+  status: "stable"
+  icon-url: "https://design.jboss.org/quarkus/logo/final/SVG/quarkus_icon_rgb_default.svg"
   guide: "https://github.com/matheuslealpa/quarkus-rsql/blob/master/docs/index.adoc"

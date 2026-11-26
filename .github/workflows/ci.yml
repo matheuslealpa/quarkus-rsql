@@ -20,7 +20,7 @@ jobs:
           cache: maven
       - run: mvn -B -ntp clean verify -Dno-format
 
-  # Verifica a compatibilidade com as versões LTS mais antigas suportadas.
+  # Verifica a compatibilidade com as LTS 3.x mais antigas suportadas e com o Quarkus 4.
   compat:
     runs-on: ubuntu-latest
     strategy:
@@ -28,15 +28,27 @@ jobs:
       matrix:
         include:
           - quarkus: "3.27.6"
+            java: "17"
             args: "-Dlegacy-junit"
+            legacy-test-class: true
           - quarkus: "3.33.4"
+            java: "17"
             args: ""
+            legacy-test-class: true
+          # O Quarkus 4 exige Java 21.
+          - quarkus: "4.0.0"
+            java: "21"
+            args: ""
+            legacy-test-class: false
     name: compat (Quarkus ${{ matrix.quarkus }})
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
         with:
           distribution: corretto
-          java-version: "17"
+          java-version: ${{ matrix.java }}
           cache: maven
+      # QuarkusExtensionTest só existe a partir do Quarkus 3.35; antes disso a classe se chama QuarkusUnitTest.
+      - if: matrix.legacy-test-class
+        run: grep -rl QuarkusExtensionTest deployment/src/test | xargs sed -i 's/QuarkusExtensionTest/QuarkusUnitTest/g'
       - run: mvn -B -ntp clean verify -Dno-format -Dquarkus.version=${{ matrix.quarkus }} ${{ matrix.args }}

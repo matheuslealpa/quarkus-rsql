@@ -27,7 +27,7 @@ Filters are bounded in length, depth, number of comparisons and `=in=` values, s
 ## Requirements
 
 * Java 17 or later (tested on 17, 21 and 25)
-* Quarkus 3.27 or later (tested with 3.27, 3.33 and 3.40)
+* Quarkus 3.27 or later (tested with 3.27, 3.33, 3.40 and 4.0; Quarkus 4 requires Java 21 or later)
 * Hibernate ORM, with or without Panache
 
 ## Installation

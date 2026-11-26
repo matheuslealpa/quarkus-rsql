@@ -7,7 +7,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 
 import io.github.matheuslealpa.rsql.Rsql;
 import io.github.matheuslealpa.rsql.RsqlException;
-import io.quarkus.test.QuarkusUnitTest;
+import io.quarkus.test.QuarkusExtensionTest;
 
 /**
  * The limits on the filters, lowered so that they are easy to reach.
@@ -15,7 +15,7 @@ import io.quarkus.test.QuarkusUnitTest;
 class RsqlLimitsTest {
 
     @RegisterExtension
-    static final QuarkusUnitTest unitTest = new QuarkusUnitTest()
+    static final QuarkusExtensionTest unitTest = new QuarkusExtensionTest()
             .withApplicationRoot((jar) -> jar.addClasses(BaseEntity.class, Fruit.class, Farm.class, Address.class,
                     Owner.class, Vegetable.class))
             .overrideConfigKey("quarkus.datasource.db-kind", "h2")
